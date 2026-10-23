@@ -10,11 +10,11 @@
 
 static const char *TAG = "demo";
 
-#define UI_PERIOD_MS 50
+#define UI_PERIOD_MS 100
 
 static const int s_button_freq[BTN_COUNT] = {
-    [BTN_UP] = 659,
-    [BTN_DOWN] = 440,
+    [BTN_UP] = 440,
+    [BTN_DOWN] = 659,
     [BTN_LEFT] = 494,
     [BTN_RIGHT] = 587,
     [BTN_CENTER] = 784,
@@ -23,6 +23,9 @@ static const int s_button_freq[BTN_COUNT] = {
     [BTN_KEY3] = 392,
     [BTN_KEY4] = 523,
 };
+
+int stick_pos_x = 0;
+int stick_pos_y = 0;
 
 static void draw_key(int x, int y, int size, bool pressed)
 {
@@ -39,24 +42,62 @@ static void draw_ui(uint32_t pressed, int mic_level, bool audio_ok)
     char line[24];
 
     display_clear();
-    display_text(2, 1, "HACKATHON BOARD", true);
+    display_text(70, 10, "Ajedrez", true);
+    display_text(70, 18, "of", true);
+    display_text(70, 26, "things", true);
 
-    display_text(0, 14, "MIC", false);
-    display_draw_rect(22, 13, 82, 10);
-    display_fill_rect(24, 15, mic_level * 78 / 100, 6, true);
-    if (audio_ok) {
-        snprintf(line, sizeof(line), "%3d", mic_level);
-        display_text(107, 14, line, false);
-    } else {
-        display_text(107, 14, "ERR", false);
+
+    bool board[5][5] = {
+        {false, false, false, false, false },
+        {false, false, false, false, false },
+        {false, false, false, false, false },
+        {false, false, false, false, false },
+        {false, false, false, false, false }
+        };
+
+    int x_init = 0;
+    int y_init = 6;
+    int x_pos = x_init;
+
+    board[stick_pos_y][stick_pos_x] = true;
+    
+    for (int y = 0; y < 5; y++) {
+        x_pos = x_init;
+        for (int x = 0; x < 5; x++) {
+            draw_key(x_pos, y_init,10, board[y][x]);
+            x_pos += 11;
+        }
+        y_init += 11;
     }
 
+    if (pressed & (1u << BTN_UP)){
+        if(stick_pos_y>0){
+            stick_pos_y-=1;
+        }
+    }
+    else if (pressed & (1u << BTN_LEFT)){
+        if(stick_pos_x>0){
+            stick_pos_x-=1;
+        }
+    }
+    else if (pressed & (1u << BTN_RIGHT)){
+        if(stick_pos_x<4){
+            stick_pos_x+=1;
+        }
+    }
+    else if (pressed & (1u << BTN_DOWN)){
+        if(stick_pos_y<4){
+            stick_pos_y+=1;
+        }
+    }
+    /*
     draw_key(15, 28, 10, pressed & (1u << BTN_UP));
     draw_key(4, 39, 10, pressed & (1u << BTN_LEFT));
     draw_key(15, 39, 10, pressed & (1u << BTN_CENTER));
     draw_key(26, 39, 10, pressed & (1u << BTN_RIGHT));
     draw_key(15, 50, 10, pressed & (1u << BTN_DOWN));
-
+    */
+    /*
     display_text(50, 29, "KEYS", false);
     for (int i = 0; i < 4; i++) {
         bool on = pressed & (1u << (BTN_KEY1 + i));
@@ -64,7 +105,7 @@ static void draw_ui(uint32_t pressed, int mic_level, bool audio_ok)
         draw_key(x, 40, 13, on);
         char num[2] = {'1' + i, 0};
         display_text(x + 4, 43, num, on);
-    }
+    }*/
 }
 
 void app_main(void)
@@ -80,9 +121,11 @@ void app_main(void)
 
     if (display_ok) {
         display_clear();
+        /*
         display_text(10, 8, "Hello, Hackathon!", false);
         display_text(10, 24, "ESP32-S3 dev board", false);
         display_text(10, 40, "Self test...", false);
+        */
         display_flush();
     }
 
