@@ -1,122 +1,131 @@
+/*
+ * AjedrezOfThings firmware. For now: two boards find each other over ESP-NOW,
+ * swap names, and stay connected.
+ *
+ * Flash the same build on two boards and power both: they pair on their own.
+ *   KEY1  connect to the nearest free board
+ *   KEY2  hang up
+ * Every 2 s the connected boards send each other a short text message, so
+ * you can see data flowing in the serial log.
+ */
+
 #include <stdio.h>
+#include <string.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_mac.h"
+#include "esp_timer.h"
 
-#include "audio.h"
 #include "buttons.h"
 #include "display.h"
+#include "link.h"
 
-static const char *TAG = "demo";
+static const char *TAG = "main";
 
-#define UI_PERIOD_MS 50
+#define UI_PERIOD_MS   100
+#define DATA_PERIOD_MS 2000
 
-static const int s_button_freq[BTN_COUNT] = {
-    [BTN_UP] = 659,
-    [BTN_DOWN] = 440,
-    [BTN_LEFT] = 494,
-    [BTN_RIGHT] = 587,
-    [BTN_CENTER] = 784,
-    [BTN_KEY1] = 262,
-    [BTN_KEY2] = 330,
-    [BTN_KEY3] = 392,
-    [BTN_KEY4] = 523,
-};
+static char s_name[LINK_NAME_LEN + 1];
+static volatile uint32_t s_rx_count;
 
-static void draw_key(int x, int y, int size, bool pressed)
+/* Arcade-style initials from the MAC, so every board gets its own name. */
+static void name_from_mac(const uint8_t mac[6], char out[LINK_NAME_LEN + 1])
 {
-    if (pressed) {
-        display_fill_rect(x, y, size, size, true);
-    } else {
-        display_fill_rect(x, y, size, size, false);
-        display_draw_rect(x, y, size, size);
+    for (int i = 0; i < LINK_NAME_LEN; i++) {
+        out[i] = 'A' + mac[3 + i] % 26;
+    }
+    out[LINK_NAME_LEN] = '\0';
+}
+
+static void on_link(link_event_t ev, const link_peer_t *peer, const uint8_t *data, size_t len)
+{
+    switch (ev) {
+    case LINK_EVT_CONNECTED:
+        ESP_LOGI(TAG, "CONNECTED to %s %02X:%02X:%02X:%02X:%02X:%02X", peer->name, peer->mac[0], peer->mac[1],
+                 peer->mac[2], peer->mac[3], peer->mac[4], peer->mac[5]);
+        break;
+    case LINK_EVT_DISCONNECTED:
+        ESP_LOGW(TAG, "DISCONNECTED from %s", peer->name);
+        break;
+    case LINK_EVT_DATA:
+        s_rx_count++;
+        ESP_LOGI(TAG, "from %s (%d dBm): %.*s", peer->name, peer->rssi, (int)len, (const char *)data);
+        break;
     }
 }
 
-static void draw_ui(uint32_t pressed, int mic_level, bool audio_ok)
+static void draw(void)
 {
     char line[24];
+    link_peer_t peer;
+    link_peer_t near[4];
+    const bool connected = link_get_peer(&peer);
+    const int n = link_nearby(near, 4);
 
     display_clear();
-    display_text(2, 1, "HACKATHON BOARD", true);
+    snprintf(line, sizeof(line), "AJEDREZ   me:%s", s_name);
+    display_text(1, 1, line, true);
 
-    display_text(0, 14, "MIC", false);
-    display_draw_rect(22, 13, 82, 10);
-    display_fill_rect(24, 15, mic_level * 78 / 100, 6, true);
-    if (audio_ok) {
-        snprintf(line, sizeof(line), "%3d", mic_level);
-        display_text(107, 14, line, false);
+    if (connected) {
+        snprintf(line, sizeof(line), "<> %s %02X%02X %ddBm", peer.name, peer.mac[4], peer.mac[5], peer.rssi);
+        display_text(0, 13, line, false);
+        snprintf(line, sizeof(line), "   rx msgs: %lu", (unsigned long)s_rx_count);
+        display_text(0, 22, line, false);
     } else {
-        display_text(107, 14, "ERR", false);
+        display_text(0, 13, "searching...", false);
     }
 
-    draw_key(15, 28, 10, pressed & (1u << BTN_UP));
-    draw_key(4, 39, 10, pressed & (1u << BTN_LEFT));
-    draw_key(15, 39, 10, pressed & (1u << BTN_CENTER));
-    draw_key(26, 39, 10, pressed & (1u << BTN_RIGHT));
-    draw_key(15, 50, 10, pressed & (1u << BTN_DOWN));
-
-    display_text(50, 29, "KEYS", false);
-    for (int i = 0; i < 4; i++) {
-        bool on = pressed & (1u << (BTN_KEY1 + i));
-        int x = 50 + i * 15;
-        draw_key(x, 40, 13, on);
-        char num[2] = {'1' + i, 0};
-        display_text(x + 4, 43, num, on);
+    display_text(0, 33, "nearby:", false);
+    for (int i = 0; i < n && i < 3; i++) {
+        snprintf(line, sizeof(line), "%s %02X%02X %4d %s", near[i].name, near[i].mac[4], near[i].mac[5], near[i].rssi,
+                 near[i].busy ? "busy" : "");
+        display_text(0, 42 + i * 8, line, false);
     }
+    display_flush();
 }
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "Hackathon board demo starting");
+    uint8_t mac[6];
 
     bool display_ok = display_init() == ESP_OK;
-    if (!display_ok) {
-        ESP_LOGE(TAG, "display init failed - continuing without screen");
-    }
-
     ESP_ERROR_CHECK(buttons_init());
 
-    if (display_ok) {
-        display_clear();
-        display_text(10, 8, "Hello, Hackathon!", false);
-        display_text(10, 24, "ESP32-S3 dev board", false);
-        display_text(10, 40, "Self test...", false);
-        display_flush();
-    }
+    /* Reads eFuse, works before Wi-Fi is up; same MAC link_get_mac() returns. */
+    ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_STA));
+    name_from_mac(mac, s_name);
+    ESP_LOGI(TAG, "I am %s", s_name);
 
-    bool audio_ok = audio_init() == ESP_OK;
-    if (audio_ok) {
-        const int notes[] = {523, 659, 784};
-        for (int i = 0; i < 3; i++) {
-            audio_play_tone(notes[i], 120);
-        }
-    } else {
-        ESP_LOGE(TAG, "audio init failed - continuing without sound");
-    }
-    vTaskDelay(pdMS_TO_TICKS(500));
+    ESP_ERROR_CHECK(link_init(s_name, on_link));
+    link_connect(NULL);
 
-    QueueHandle_t events = buttons_event_queue();
-    int log_div = 0;
+    QueueHandle_t buttons = buttons_event_queue();
+    uint32_t next_data = 0;
+    uint32_t seq = 0;
     while (1) {
         button_event_t ev;
-        if (xQueueReceive(events, &ev, pdMS_TO_TICKS(UI_PERIOD_MS)) == pdTRUE) {
-            ESP_LOGI(TAG, "button %s %s", buttons_name(ev.id), ev.pressed ? "pressed" : "released");
-            if (ev.pressed && audio_ok) {
-                audio_play_tone(s_button_freq[ev.id], 100);
+        if (xQueueReceive(buttons, &ev, pdMS_TO_TICKS(UI_PERIOD_MS)) == pdTRUE && ev.pressed) {
+            if (ev.id == BTN_KEY1) {
+                ESP_LOGI(TAG, "KEY1: connect to nearest");
+                link_connect(NULL);
+            } else if (ev.id == BTN_KEY2) {
+                ESP_LOGI(TAG, "KEY2: hang up");
+                link_disconnect();
             }
         }
 
-        int mic_level = audio_ok ? audio_mic_level() : 0;
-        if (display_ok) {
-            draw_ui(buttons_read(), mic_level, audio_ok);
-            display_flush();
+        const uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
+        if (link_get_peer(NULL) && (int32_t)(now - next_data) >= 0) {
+            char msg[32];
+            int len = snprintf(msg, sizeof(msg), "hello #%lu from %s", (unsigned long)seq++, s_name);
+            link_send(msg, len);
+            next_data = now + DATA_PERIOD_MS;
         }
 
-        if (audio_ok && ++log_div >= 1000 / UI_PERIOD_MS) {
-            log_div = 0;
-            ESP_LOGI(TAG, "mic level: %d", mic_level);
+        if (display_ok) {
+            draw();
         }
     }
 }
