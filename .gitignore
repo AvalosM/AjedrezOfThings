@@ -12,3 +12,4 @@ dependencies.lock
 .vscode/
 .idea/
 .DS_Store
+*.log
