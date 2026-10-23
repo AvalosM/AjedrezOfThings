@@ -124,8 +124,7 @@ static void on_link_event(const event_t *ev)
         /* TODO: back to the lobby happens on its own; anything to clean up? */
         break;
     case LINK_EVT_DATA:
-        ESP_LOGI(TAG, "%s sent %d bytes", ev->peer.name, (int)ev->len);
-        /* TODO: ev->data / ev->len is what the peer sent with link_send(). */
+        game_on_data(&s_game, ev->data, ev->len);
         break;
     }
 }
@@ -189,6 +188,9 @@ void app_main(void)
             } else if (ev.kind == EVENT_LINK) {
                 on_link_event(&ev);
             }
+        }
+        if (link_get_state(NULL) == LINK_CONNECTED) {
+            game_tick(&s_game);
         }
         draw();
     }

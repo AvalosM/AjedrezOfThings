@@ -136,14 +136,16 @@ void screen_match(const link_peer_t *peer, const game_t *game)
         y_pos += 11;
     }
 
-    // Right of the board: who we play, our color, and the keys.
+    // Right of the board: who we play, our color, whose turn, and the keys.
     snprintf(line, sizeof(line), "vs %s", peer->name);
     display_text(62, 6, line, false);
     display_text(62, 16, game->jugador.EsBlanca ? "you: white" : "you: black", false);
-    if (game->seleccionada) {
-        display_text(62, 26, "selected", false);
+    if (game_my_turn(game)) {
+        display_text(62, 26, "your turn", false);
+    } else {
+        display_text(62, 26, game->sending ? "sending..." : "their turn", false);
     }
-    display_text(62, 36, "K1 move", false);
+    display_text(62, 36, game->seleccionada ? "K1 move" : "K1 pick", false);
     display_text(62, 46, "K2 back", false);
     display_text(62, 56, "K4 quit", false);
     display_flush();
