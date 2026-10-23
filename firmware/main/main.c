@@ -23,8 +23,8 @@
 #include "buttons.h"
 #include "display.h"
 #include "events.h"
-#include "game.h"
 #include "link.h"
+#include "match.h"
 #include "player.h"
 #include "screens.h"
 
@@ -36,7 +36,13 @@ static const char *TAG = "main";
 static char s_name[LINK_NAME_LEN + 1];
 char player_tag[PLAYER_NAME_LEN];
 static int s_selected;      /* lobby: index of the highlighted board in link_nearby() */
-static game_t s_game;       /* the match being played while connected */
+
+/* Match screen: the square the joystick points at, and the piece picked up. */
+static int s_cursor_x;
+static int s_cursor_y;
+static bool s_picked;
+static int s_pick_x;
+static int s_pick_y;
 
 /* Arcade-style initials from the MAC, so every board gets its own name. */
 static void name_from_mac(char out[LINK_NAME_LEN + 1])
@@ -47,6 +53,34 @@ static void name_from_mac(char out[LINK_NAME_LEN + 1])
         out[i] = 'A' + mac[3 + i] % 26;
     }
     out[LINK_NAME_LEN] = '\0';
+}
+
+/* Joystick moves the cursor. KEY1 picks up a piece (on our turn), then KEY1
+ * again asks match to move it; KEY2 puts it back down. */
+static void on_match_button(button_id_t key)
+{
+    /* Joystick: same mapping as Franco and Fede's draw_ui(). */
+    if (key == BTN_DOWN && s_cursor_y > 0) {
+        s_cursor_y--;
+    } else if (key == BTN_RIGHT && s_cursor_x > 0) {
+        s_cursor_x--;
+    } else if (key == BTN_LEFT && s_cursor_x < 4) {
+        s_cursor_x++;
+    } else if (key == BTN_UP && s_cursor_y < 4) {
+        s_cursor_y++;
+    } else if (key == BTN_KEY1 && !s_picked) {
+        if (match_my_turn()) {
+            s_picked = true;
+            s_pick_x = s_cursor_x;
+            s_pick_y = s_cursor_y;
+        }
+    } else if (key == BTN_KEY1) {
+        /* Illegal moves do nothing (TODO: tell the player). */
+        match_move(s_pick_x, s_pick_y, s_cursor_x, s_cursor_y);
+        s_picked = false;
+    } else if (key == BTN_KEY2) {
+        s_picked = false;
+    }
 }
 
 static void on_button(button_id_t key)
@@ -75,18 +109,17 @@ static void on_button(button_id_t key)
         break;
     case LINK_INVITED:
         if (key == BTN_KEY1) {
-            if (link_accept() == ESP_OK) {
-                game_start(&s_game, false);  /* the inviter plays white and sends the board */
-            }
+            s_picked = false;
+            match_accept();  /* we play black */
         } else if (key == BTN_KEY2) {
             link_hangup();
         }
         break;
     case LINK_CONNECTED:
         if (key == BTN_KEY4) {
-            link_hangup();
+            match_quit();
         } else {
-            game_on_button(&s_game, key);
+            on_match_button(key);
         }
         break;
     }
@@ -94,6 +127,8 @@ static void on_button(button_id_t key)
 
 static void on_link_event(const event_t *ev)
 {
+    match_on_link_event(ev->link, &ev->peer, ev->data, ev->len);
+
     switch (ev->link) {
     case LINK_EVT_INVITED:
         ESP_LOGI(TAG, "%s invites us", ev->peer.name);
@@ -101,14 +136,12 @@ static void on_link_event(const event_t *ev)
         break;
     case LINK_EVT_CONNECTED:
         ESP_LOGI(TAG, "%s accepted", ev->peer.name);
-        game_start(&s_game, true);  /* we invited: we play white */
+        s_picked = false;
         break;
     case LINK_EVT_DISCONNECTED:
         ESP_LOGI(TAG, "%s is gone", ev->peer.name);
-        /* TODO: back to the lobby happens on its own; anything to clean up? */
         break;
     case LINK_EVT_DATA:
-        game_on_data(&s_game, ev->data, ev->len);
         break;
     }
 }
@@ -135,7 +168,7 @@ static void draw(void)
         screen_invited(&peer);
         break;
     case LINK_CONNECTED:
-        screen_match(&peer, &s_game);
+        screen_match(match_get(), s_cursor_x, s_cursor_y, s_picked);
         break;
     }
 }
@@ -173,9 +206,7 @@ void app_main(void)
                 on_link_event(&ev);
             }
         }
-        if (link_get_state(NULL) == LINK_CONNECTED) {
-            game_tick(&s_game);
-        }
+        match_tick();
         draw();
     }
 }

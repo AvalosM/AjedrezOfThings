@@ -2,14 +2,14 @@
 """Play AjedrezOfThings from the laptop against a board.
 
 The laptop shows up in the boards' lobbies like another board (espnow_probe.py's
-link peer), then speaks the game protocol of firmware/main/game.c:
+link peer), then speaks the game protocol of firmware/main/match.c. While a match
+runs, each side sends its state every 300 ms:
 
-    START type=3, turn_count=0, board[25]   the starting board (white sends it)
-    MOVE  type=1, turn_count, board[25]     the board after move number turn_count
-    ACK   type=2, turn_count                "I have the board for turn_count"
+    STATE type=1, turn_count, board[25]
 
-START and MOVE are resent every 300 ms until the ACK arrives. Each square is
-one byte: the piece (chess.h order: A C P T R D, 6 = empty), plus 0x80 if white.
+and takes the other side's board whenever its turn_count is newer. White (whoever
+invited) makes the starting board; black waits for it. Each square is one byte:
+the piece (chessboard.h order: A C P T R D, 6 = empty), plus 0x80 if white.
 
     sudo tools/espnow_mon.sh up                  # once: Wi-Fi card -> monitor mode
     sudo python3 tools/play.py                   # wait for a board to invite LAP: we play black
@@ -30,13 +30,13 @@ import time
 
 import espnow_probe as probe
 
-# --- game protocol (firmware/main/game.c) ------------------------------------------
+# --- game protocol (firmware/main/match.c) -----------------------------------------
 
-MSG_MOVE, MSG_ACK, MSG_START = 1, 2, 3
+MSG_STATE = 1
 WHITE_BIT = 0x80
-RESEND = 0.3
+STATE_PERIOD = 0.3
 
-# --- pieces and rules (firmware/main/chess.c) --------------------------------------
+# --- pieces and rules (firmware/main/chessboard.c) ---------------------------------
 
 ALFIL, CABALLO, PEON, TORRE, REY, DAMA, VACIA = range(7)
 LETTERS = "ACPTRD"
@@ -116,7 +116,7 @@ def try_move(board, x0, y0, x1, y1, white):
 
 
 class Game:
-    """Mirror of game.c. All methods run on the main thread."""
+    """Mirror of match.c. All methods run on the main thread."""
 
     def __init__(self, link, white):
         self.link = link            # anything with send_data(bytes)
@@ -124,67 +124,48 @@ class Game:
         self.board = [VACIA] * 25
         self.started = False
         self.turn_count = 0
-        self.sending = False
         self.sent_at = 0.0
-        if white:  # white makes the board and sends it; black waits for it
+        if white:  # white makes the board; black gets it from white's first STATE
             self.board = initial_board()
             self.started = True
-            self.sending = True
-            self._send_board()
+            self._send_state()
 
     def my_turn(self):
         return self.started and (self.turn_count % 2 == 0) == self.white
 
-    def _send_board(self):
-        typ = MSG_START if self.turn_count == 0 else MSG_MOVE
-        self.link.send_data(bytes([typ, self.turn_count & 0xFF]) + bytes(self.board))
+    def _send_state(self):
+        self.link.send_data(bytes([MSG_STATE, self.turn_count & 0xFF]) + bytes(self.board))
         self.sent_at = time.time()
 
     def on_data(self, data):
-        """Handle what the board sent. Returns True if something changed."""
-        changed = False
-        if len(data) == 27 and data[0] in (MSG_START, MSG_MOVE):
-            turn = data[1]
-            if data[0] == MSG_START:
-                take = not self.started
-            else:
-                take = self.started and turn == self.turn_count + 1 and not self.my_turn()
-            if take:
-                self.board = [sq if piece(sq) <= VACIA else VACIA for sq in data[2:]]
-                self.turn_count = turn
-                self.started = True
-                self.sending = False
-                changed = True
-            if self.started and turn <= self.turn_count:
-                self.link.send_data(bytes([MSG_ACK, turn]))
-        elif len(data) == 2 and data[0] == MSG_ACK:
-            if self.sending and data[1] == self.turn_count & 0xFF:
-                self.sending = False
-                changed = True
-        return changed
+        """The other side's STATE: take its board if it's newer. True if it was."""
+        if len(data) != 27 or data[0] != MSG_STATE:
+            return False
+        turn = data[1]
+        if self.started and turn <= self.turn_count:
+            return False  # nothing new: we already have this turn
+        self.board = [sq if piece(sq) <= VACIA else VACIA for sq in data[2:]]
+        self.turn_count = turn
+        self.started = True
+        return True
 
     def tick(self):
-        if self.sending and time.time() - self.sent_at >= RESEND:
-            self._send_board()
+        if self.started and time.time() - self.sent_at >= STATE_PERIOD:
+            self._send_state()
 
     def move(self, x0, y0, x1, y1):
         """Our move. Returns an error message, or None if the move was made."""
         if not self.my_turn():
             return "not your turn"
-        if self.sending:
-            return "wait: the last move isn't acknowledged yet"
         new = try_move(self.board, x0, y0, x1, y1, self.white)
         if new is None:
             return "illegal move"
         self.board = new
         self.turn_count += 1
-        self.sending = True
-        self._send_board()
+        self._send_state()  # right away, not at the next tick
         return None
 
     def status(self):
-        if self.sending:
-            return "sending..."
         if not self.started:
             return "waiting for the board..."
         return "your turn" if self.my_turn() else "their turn"

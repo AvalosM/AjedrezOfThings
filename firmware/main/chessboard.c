@@ -2,7 +2,7 @@
 
 #include "esp_random.h"
 
-#include "chess.h"
+#include "chessboard.h"
 
 static const char s_pieza_char[] = {
     [Alfil]   = 'A',
@@ -150,4 +150,25 @@ bool movimientoYCaptura(int x_init, int y_init, int x_end, int y_end,
     }
 
     return true;
+}
+
+#define WHITE_BIT 0x80
+
+void board_to_bytes(const board_t *board, uint8_t out[BOARD_BYTES])
+{
+    for (int i = 0; i < BOARD_BYTES; i++) {
+        const struct_pieza p = board->sq[i / 5][i % 5];
+        out[i] = p.Pieza | (p.EsBlanca ? WHITE_BIT : 0);
+    }
+}
+
+void board_from_bytes(board_t *board, const uint8_t in[BOARD_BYTES])
+{
+    for (int i = 0; i < BOARD_BYTES; i++) {
+        const uint8_t piece = in[i] & ~WHITE_BIT;
+        board->sq[i / 5][i % 5] = (struct_pieza){
+            .Pieza = piece <= Vacia ? piece : Vacia,  /* garbage becomes an empty square */
+            .EsBlanca = in[i] & WHITE_BIT,
+        };
+    }
 }

@@ -2,7 +2,7 @@
 
 #include "display.h"
 #include "board.h"
-#include "game.h"
+#include "match.h"
 
 #include "screens.h"
 
@@ -102,7 +102,7 @@ static void draw_key(int x, int y, int size, bool pressed)
     }
 }
 
-void screen_match(const link_peer_t *peer, const game_t *game)
+void screen_match(const match_t *match, int cursor_x, int cursor_y, bool picked)
 {
     char line[24];
 
@@ -114,8 +114,8 @@ void screen_match(const link_peer_t *peer, const game_t *game)
     for (int y = 0; y < 5; y++) {
         int x_pos = 0;
         for (int x = 0; x < 5; x++) {
-            const struct_pieza casilla = game->board[y][x];
-            const bool es_cursor = x == game->cursor_x && y == game->cursor_y;
+            const struct_pieza casilla = match->board.sq[y][x];
+            const bool es_cursor = x == cursor_x && y == cursor_y;
             char txt[2] = {pieza_a_char(casilla.Pieza), '\0'};
 
             if (casilla.Pieza == Vacia || casilla.EsBlanca) {
@@ -137,17 +137,15 @@ void screen_match(const link_peer_t *peer, const game_t *game)
     }
 
     // Right of the board: who we play, our color, whose turn, and the keys.
-    snprintf(line, sizeof(line), "vs %s", peer->name);
+    snprintf(line, sizeof(line), "vs %s", match->rival.name);
     display_text(62, 6, line, false);
-    display_text(62, 16, game->jugador.EsBlanca ? "you: white" : "you: black", false);
-    if (game->sending) {
-        display_text(62, 26, "sending...", false);
-    } else if (!game->started) {
+    display_text(62, 16, match->my_color == COLOR_WHITE ? "you: white" : "you: black", false);
+    if (!match->started) {
         display_text(62, 26, "waiting...", false);
     } else {
-        display_text(62, 26, game_my_turn(game) ? "your turn" : "their turn", false);
+        display_text(62, 26, match_my_turn() ? "your turn" : "their turn", false);
     }
-    display_text(62, 36, game->seleccionada ? "K1 move" : "K1 pick", false);
+    display_text(62, 36, picked ? "K1 move" : "K1 pick", false);
     display_text(62, 46, "K2 back", false);
     display_text(62, 56, "K4 quit", false);
     display_flush();
