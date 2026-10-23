@@ -20,7 +20,6 @@ typedef struct {
     bool is_my_turn;
     uint8_t rival_mac[6];
     char rival_name[4];
-    uint32_t seed;
     uint8_t turn_count;
     char winner_name[4];
     int32_t my_time_secs;
