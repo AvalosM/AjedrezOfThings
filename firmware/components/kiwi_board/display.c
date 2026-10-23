@@ -257,6 +257,20 @@ void display_text(int x, int y, const char *str, bool invert)
     }
 }
 
+void display_text_pieza(int x, int y, const char *str, bool invert)
+{
+    int len = strlen(str);
+
+    if (invert) {
+        display_fill_rect(x - 1, y - 1, len * DISPLAY_FONT_W_pieza + 1, DISPLAY_FONT_H_pieza + 2, true);
+    } else {
+        display_fill_rect(x, y, len * DISPLAY_FONT_W_pieza, DISPLAY_FONT_H_pieza, false);
+    }
+    for (int i = 0; i < len; i++) {
+        draw_char(x + i * DISPLAY_FONT_W_pieza, y, str[i], !invert);
+    }
+}
+
 esp_err_t display_flush(void)
 {
     ESP_RETURN_ON_ERROR(esp_lcd_panel_draw_bitmap(s_panel, 0, 0, BOARD_LCD_WIDTH, BOARD_LCD_HEIGHT, s_fb), TAG,

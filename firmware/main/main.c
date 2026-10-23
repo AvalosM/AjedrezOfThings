@@ -1,165 +1,212 @@
+/*
+ * AjedrezOfThings firmware: start-up and the main loop.
+ *
+ * The network side is done: components/link finds nearby boards and handles
+ * invite / accept / hang up (see link.h). What's left here is the business
+ * logic, marked TODO:
+ *   - on_button():     what each key does on each screen
+ *   - on_link_event(): reacting to invites, connections and messages
+ *   - screens.c:       what each screen shows
+ *
+ * Joystick note: buttons.c names its directions as in the organizers' board.h,
+ * which are shifted 90 degrees. Pushing up arrives as BTN_RIGHT, right as
+ * BTN_DOWN, down as BTN_LEFT, left as BTN_UP. The keys (BTN_KEY1..4) are fine.
+ */
+
 #include <stdio.h>
+#include <string.h>
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_mac.h"
+#include "nvs_flash.h"
 
-#include "audio.h"
 #include "buttons.h"
 #include "display.h"
+#include "events.h"
+#include "link.h"
+#include "match.h"
+#include "player.h"
+#include "screens.h"
 
-static const char *TAG = "demo";
+static const char *TAG = "main";
 
-#define UI_PERIOD_MS 100
+#define UI_PERIOD_MS 100    /* redraw at least this often */
+#define MAX_LISTED   16     /* boards in the lobby list (the screen scrolls) */
 
-static const int s_button_freq[BTN_COUNT] = {
-    [BTN_UP] = 440,
-    [BTN_DOWN] = 659,
-    [BTN_LEFT] = 494,
-    [BTN_RIGHT] = 587,
-    [BTN_CENTER] = 784,
-    [BTN_KEY1] = 262,
-    [BTN_KEY2] = 330,
-    [BTN_KEY3] = 392,
-    [BTN_KEY4] = 523,
-};
+static char s_name[LINK_NAME_LEN + 1];
+char player_tag[PLAYER_NAME_LEN];
+static int s_selected;      /* lobby: index of the highlighted board in link_nearby() */
 
-int stick_pos_x = 0;
-int stick_pos_y = 0;
+/* Match screen: the square the joystick points at, and the piece picked up. */
+static int s_cursor_x;
+static int s_cursor_y;
+static bool s_picked;
+static int s_pick_x;
+static int s_pick_y;
 
-static void draw_key(int x, int y, int size, bool pressed)
+/* Arcade-style initials from the MAC, so every board gets its own name. */
+static void name_from_mac(char out[LINK_NAME_LEN + 1])
 {
-    if (pressed) {
-        display_fill_rect(x, y, size, size, true);
-    } else {
-        display_fill_rect(x, y, size, size, false);
-        display_draw_rect(x, y, size, size);
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    for (int i = 0; i < LINK_NAME_LEN; i++) {
+        out[i] = 'A' + mac[3 + i] % 26;
+    }
+    out[LINK_NAME_LEN] = '\0';
+}
+
+/* Joystick moves the cursor. KEY1 picks up a piece (on our turn), then KEY1
+ * again asks match to move it; KEY2 puts it back down. */
+static void on_match_button(button_id_t key)
+{
+    /* Joystick: same mapping as Franco and Fede's draw_ui(). */
+    if (key == BTN_DOWN && s_cursor_y > 0) {
+        s_cursor_y--;
+    } else if (key == BTN_RIGHT && s_cursor_x > 0) {
+        s_cursor_x--;
+    } else if (key == BTN_LEFT && s_cursor_x < 4) {
+        s_cursor_x++;
+    } else if (key == BTN_UP && s_cursor_y < 4) {
+        s_cursor_y++;
+    } else if (key == BTN_KEY1 && !s_picked) {
+        if (match_my_turn()) {
+            s_picked = true;
+            s_pick_x = s_cursor_x;
+            s_pick_y = s_cursor_y;
+        }
+    } else if (key == BTN_KEY1) {
+        /* Illegal moves do nothing (TODO: tell the player). */
+        match_move(s_pick_x, s_pick_y, s_cursor_x, s_cursor_y);
+        s_picked = false;
+    } else if (key == BTN_KEY2) {
+        s_picked = false;
     }
 }
 
-static void draw_ui(uint32_t pressed, int mic_level, bool audio_ok)
+static void on_button(button_id_t key)
 {
-    char line[24];
-
-    display_clear();
-    display_text(70, 10, "Ajedrez", true);
-    display_text(70, 18, "of", true);
-    display_text(70, 26, "things", true);
-
-
-    bool board[5][5] = {
-        {false, false, false, false, false },
-        {false, false, false, false, false },
-        {false, false, false, false, false },
-        {false, false, false, false, false },
-        {false, false, false, false, false }
-        };
-
-    int x_init = 0;
-    int y_init = 6;
-    int x_pos = x_init;
-
-    board[stick_pos_y][stick_pos_x] = true;
-    
-    for (int y = 0; y < 5; y++) {
-        x_pos = x_init;
-        for (int x = 0; x < 5; x++) {
-            draw_key(x_pos, y_init,10, board[y][x]);
-            x_pos += 11;
+    switch (link_get_state(NULL)) {
+    case LINK_IDLE: {
+        link_peer_t nearby[MAX_LISTED];
+        const int n = link_nearby(nearby, MAX_LISTED);
+        if (n == 0) {
+            break;
         }
-        y_init += 11;
+        if (s_selected >= n) {
+            s_selected = 0;  /* a board left the list */
+        }
+        if (key == BTN_KEY2) {
+            s_selected = (s_selected + 1) % n;
+        } else if (key == BTN_KEY1 && !nearby[s_selected].busy) {
+            link_invite(&nearby[s_selected]);  /* busy boards wouldn't answer */
+        }
+        break;
     }
+    case LINK_INVITING:
+        if (key == BTN_KEY2) {
+            link_hangup();
+        }
+        break;
+    case LINK_INVITED:
+        if (key == BTN_KEY1) {
+            s_picked = false;
+            match_accept();  /* we play black */
+        } else if (key == BTN_KEY2) {
+            link_hangup();
+        }
+        break;
+    case LINK_CONNECTED:
+        if (key == BTN_KEY4) {
+            match_quit();
+        } else {
+            on_match_button(key);
+        }
+        break;
+    }
+}
 
-    if (pressed & (1u << BTN_UP)){
-        if(stick_pos_y>0){
-            stick_pos_y-=1;
-        }
+static void on_link_event(const event_t *ev)
+{
+    match_on_link_event(ev->link, &ev->peer, ev->data, ev->len);
+
+    switch (ev->link) {
+    case LINK_EVT_INVITED:
+        ESP_LOGI(TAG, "%s invites us", ev->peer.name);
+        /* TODO: a sound? */
+        break;
+    case LINK_EVT_CONNECTED:
+        ESP_LOGI(TAG, "%s accepted", ev->peer.name);
+        s_picked = false;
+        break;
+    case LINK_EVT_DISCONNECTED:
+        ESP_LOGI(TAG, "%s is gone", ev->peer.name);
+        break;
+    case LINK_EVT_DATA:
+        break;
     }
-    else if (pressed & (1u << BTN_LEFT)){
-        if(stick_pos_x>0){
-            stick_pos_x-=1;
+}
+
+/* Draw the screen for whatever state the link is in. */
+static void draw(void)
+{
+    link_peer_t peer;
+    link_peer_t nearby[MAX_LISTED];
+
+    switch (link_get_state(&peer)) {
+    case LINK_IDLE: {
+        const int n = link_nearby(nearby, MAX_LISTED);
+        if (s_selected >= n) {
+            s_selected = 0;  /* a board left the list */
         }
+        screen_lobby(s_name, nearby, n, s_selected);
+        break;
     }
-    else if (pressed & (1u << BTN_RIGHT)){
-        if(stick_pos_x<4){
-            stick_pos_x+=1;
-        }
+    case LINK_INVITING:
+        screen_inviting(&peer);
+        break;
+    case LINK_INVITED:
+        screen_invited(&peer);
+        break;
+    case LINK_CONNECTED:
+        screen_match(match_get(), s_cursor_x, s_cursor_y, s_picked);
+        break;
     }
-    else if (pressed & (1u << BTN_DOWN)){
-        if(stick_pos_y<4){
-            stick_pos_y+=1;
-        }
-    }
-    /*
-    draw_key(15, 28, 10, pressed & (1u << BTN_UP));
-    draw_key(4, 39, 10, pressed & (1u << BTN_LEFT));
-    draw_key(15, 39, 10, pressed & (1u << BTN_CENTER));
-    draw_key(26, 39, 10, pressed & (1u << BTN_RIGHT));
-    draw_key(15, 50, 10, pressed & (1u << BTN_DOWN));
-    */
-    /*
-    display_text(50, 29, "KEYS", false);
-    for (int i = 0; i < 4; i++) {
-        bool on = pressed & (1u << (BTN_KEY1 + i));
-        int x = 50 + i * 15;
-        draw_key(x, 40, 13, on);
-        char num[2] = {'1' + i, 0};
-        display_text(x + 4, 43, num, on);
-    }*/
 }
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "Hackathon board demo starting");
-
-    bool display_ok = display_init() == ESP_OK;
-    if (!display_ok) {
-        ESP_LOGE(TAG, "display init failed - continuing without screen");
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
     }
+    ESP_ERROR_CHECK(err);
 
+    ESP_ERROR_CHECK(display_init());
     ESP_ERROR_CHECK(buttons_init());
 
-    if (display_ok) {
-        display_clear();
-        /*
-        display_text(10, 8, "Hello, Hackathon!", false);
-        display_text(10, 24, "ESP32-S3 dev board", false);
-        display_text(10, 40, "Self test...", false);
-        */
-        display_flush();
-    }
-
-    bool audio_ok = audio_init() == ESP_OK;
-    if (audio_ok) {
-        const int notes[] = {523, 659, 784};
-        for (int i = 0; i < 3; i++) {
-            audio_play_tone(notes[i], 120);
-        }
+    bool has_name = player_profile_load(player_tag, sizeof(player_tag));
+    if (!has_name) {
+        name_from_mac(player_tag);
+        player_profile_arcade_input(player_tag);
     } else {
-        ESP_LOGE(TAG, "audio init failed - continuing without sound");
+        ESP_LOGI(TAG, "Bienvenido de nuevo: %s", player_tag);
     }
-    vTaskDelay(pdMS_TO_TICKS(500));
+    snprintf(s_name, sizeof(s_name), "%s", player_tag);
 
-    QueueHandle_t events = buttons_event_queue();
-    int log_div = 0;
+    events_init();
+    ESP_ERROR_CHECK(link_init(s_name, events_on_link));
+
     while (1) {
-        button_event_t ev;
-        if (xQueueReceive(events, &ev, pdMS_TO_TICKS(UI_PERIOD_MS)) == pdTRUE) {
-            ESP_LOGI(TAG, "button %s %s", buttons_name(ev.id), ev.pressed ? "pressed" : "released");
-            if (ev.pressed && audio_ok) {
-                audio_play_tone(s_button_freq[ev.id], 100);
+        event_t ev;
+        if (events_wait(&ev, UI_PERIOD_MS)) {
+            if (ev.kind == EVENT_BUTTON && ev.button.pressed) {
+                on_button(ev.button.id);
+            } else if (ev.kind == EVENT_LINK) {
+                on_link_event(&ev);
             }
         }
-
-        int mic_level = audio_ok ? audio_mic_level() : 0;
-        if (display_ok) {
-            draw_ui(buttons_read(), mic_level, audio_ok);
-            display_flush();
-        }
-
-        if (audio_ok && ++log_div >= 1000 / UI_PERIOD_MS) {
-            log_div = 0;
-            ESP_LOGI(TAG, "mic level: %d", mic_level);
-        }
+        match_tick();
+        draw();
     }
 }

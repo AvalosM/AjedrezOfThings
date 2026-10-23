@@ -1,0 +1,11 @@
+menu "link (ESP-NOW)"
+
+    config LINK_WIFI_CHANNEL
+        int "Wi-Fi channel"
+        range 1 13
+        default 1
+        help
+            All boards (and the laptop probe) must use the same channel.
+            Move off channel 1 if the room is crowded.
+
+endmenu
