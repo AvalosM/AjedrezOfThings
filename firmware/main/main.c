@@ -23,10 +23,10 @@
 #include "buttons.h"
 #include "display.h"
 #include "events.h"
+#include "game.h"
 #include "link.h"
 #include "player.h"
 #include "screens.h"
-#include "match.h"
 
 static const char *TAG = "main";
 
@@ -36,6 +36,7 @@ static const char *TAG = "main";
 static char s_name[LINK_NAME_LEN + 1];
 char player_tag[PLAYER_NAME_LEN];
 static int s_selected;      /* lobby: index of the highlighted board in link_nearby() */
+static game_t s_game;       /* the match being played while connected */
 
 /* Arcade-style initials from the MAC, so every board gets its own name. */
 static void name_from_mac(char out[LINK_NAME_LEN + 1])
@@ -48,9 +49,25 @@ static void name_from_mac(char out[LINK_NAME_LEN + 1])
     out[LINK_NAME_LEN] = '\0';
 }
 
+/* The seed for the starting board. It only depends on the two MACs, added
+ * byte by byte, so both boards of a match get the same number. */
+static uint32_t match_seed(const uint8_t peer_mac[6])
+{
+    uint8_t my_mac[6];
+    esp_read_mac(my_mac, ESP_MAC_WIFI_STA);
+
+    uint32_t seed = 0;
+    for (int i = 0; i < 6; i++) {
+        seed = seed * 31 + my_mac[i] + peer_mac[i];
+    }
+    return seed;
+}
+
 static void on_button(button_id_t key)
 {
-    switch (link_get_state(NULL)) {
+    link_peer_t peer;
+
+    switch (link_get_state(&peer)) {
     case LINK_IDLE: {
         link_peer_t nearby[MAX_LISTED];
         const int n = link_nearby(nearby, MAX_LISTED);
@@ -74,14 +91,18 @@ static void on_button(button_id_t key)
         break;
     case LINK_INVITED:
         if (key == BTN_KEY1) {
-            link_accept();
+            if (link_accept() == ESP_OK) {
+                game_start(&s_game, match_seed(peer.mac), false);  /* the inviter plays white */
+            }
         } else if (key == BTN_KEY2) {
             link_hangup();
         }
         break;
     case LINK_CONNECTED:
-        if (key == BTN_KEY2) {
+        if (key == BTN_KEY4) {
             link_hangup();
+        } else {
+            game_on_button(&s_game, key);
         }
         break;
     }
@@ -96,7 +117,7 @@ static void on_link_event(const event_t *ev)
         break;
     case LINK_EVT_CONNECTED:
         ESP_LOGI(TAG, "%s accepted", ev->peer.name);
-        /* TODO: start a game. */
+        game_start(&s_game, match_seed(ev->peer.mac), true);  /* we invited: we play white */
         break;
     case LINK_EVT_DISCONNECTED:
         ESP_LOGI(TAG, "%s is gone", ev->peer.name);
@@ -131,7 +152,7 @@ static void draw(void)
         screen_invited(&peer);
         break;
     case LINK_CONNECTED:
-        screen_connected(&peer);
+        screen_match(&peer, &s_game);
         break;
     }
 }
