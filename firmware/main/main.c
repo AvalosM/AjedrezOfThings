@@ -26,6 +26,7 @@
 #include "link.h"
 #include "player.h"
 #include "screens.h"
+#include "match.h"
 
 static const char *TAG = "main";
 
@@ -79,7 +80,6 @@ static void on_button(button_id_t key)
         }
         break;
     case LINK_CONNECTED:
-        /* TODO: send something with link_send(). */
         if (key == BTN_KEY2) {
             link_hangup();
         }

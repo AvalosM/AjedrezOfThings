@@ -1,15 +1,33 @@
 #include <stdio.h>
 
 #include "display.h"
+#include "board.h"
+#include "match.h"
 
 #include "screens.h"
 
+
 #define PEER_ROWS 4
+#define BUTTON_SLOTS 4
+#define BUTTON_SLOT_W BOARD_LCD_WIDTH / BUTTON_SLOTS
+#define BUTTON_SLOT_CHARS BUTTON_SLOT_W / DISPLAY_FONT_W
 
 /* Inverted bar across the top. */
 static void title(const char *text)
 {
     display_text(1, 1, text, true);
+}
+
+static void display_button_options(const char **options, int len) {
+    const int y = BOARD_LCD_HEIGHT - DISPLAY_FONT_H - 1;
+    for (int i = 0; i < len && i < BUTTON_SLOTS; i++) {
+        int x = i * BUTTON_SLOT_W;
+        char label[BUTTON_SLOT_CHARS + 1];
+        
+        /* Draw option */
+        snprintf(label, sizeof(label), "%s", options[i]);
+        display_text(x, y, label, false);
+    }
 }
 
 void screen_lobby(const char *me, const link_peer_t *nearby, int n, int selected)
@@ -36,7 +54,7 @@ void screen_lobby(const char *me, const link_peer_t *nearby, int n, int selected
         display_text(120, 41, "v", false);  /* more below */
     }
 
-    display_text(0, 56, "K1 invite K2 next", false);
+    display_button_options((const char *[]){"ok", "next"}, 2);
     display_flush();
 }
 
@@ -47,7 +65,7 @@ void screen_inviting(const link_peer_t *peer)
     char line[24];
     snprintf(line, sizeof(line), "waiting for %s", peer->name);
     display_text(0, 16, line, false);
-    display_text(0, 56, "K2 cancel", false);
+    display_button_options((const char *[]){"cancel"}, 1);
     display_flush();
 }
 
@@ -58,7 +76,7 @@ void screen_invited(const link_peer_t *peer)
     char line[24];
     snprintf(line, sizeof(line), "invited by %s", peer->name);
     display_text(0, 16, line, false);
-    display_text(0, 56, "K1 accept  K2 decline", false);
+    display_button_options((const char *[]){"yes", "no"}, 2);
     display_flush();
 }
 
@@ -69,6 +87,18 @@ void screen_connected(const link_peer_t *peer)
     char line[24];
     snprintf(line, sizeof(line), "connected to %s", peer->name);
     display_text(0, 16, line, false);
-    display_text(0, 56, "K2 hangup", false);
+    display_button_options((const char *[]){"hang"}, 1);
+    display_flush();
+}
+
+void screen_match(const match_t *match, const link_peer_t *peer) {
+    display_clear();
+    title("MATCH");
+    char line[24];
+    snprintf(line, sizeof(line), "playing %s", peer->name);
+    display_text(0, 16, line, false);
+    snprintf(line, sizeof(line), "turn: %d", match->turn_count);
+    display_text(0, 26, line, false);
+    display_button_options((const char *[]){"hang"}, 1);
     display_flush();
 }
