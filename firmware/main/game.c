@@ -15,8 +15,8 @@ static const char *TAG = "game";
 /*
  * Messages to the other board, sent with link_send():
  *
- *   MOVE  type=1, ply, board[25]   the board after move number `ply`
- *   ACK   type=2, ply              "I have move number `ply`"
+ *   MOVE  type=1, turn_count, board[25]   the board after move number turn_count
+ *   ACK   type=2, turn_count              "I have move number turn_count"
  *
  * board[] goes row by row (board[y * 5 + x]). Each square is one byte: the
  * piece (TiposDePiezaYCasillaDefault) in the low bits, plus 0x80 if white.
@@ -27,13 +27,13 @@ enum { MSG_MOVE = 1, MSG_ACK = 2 };
 
 typedef struct __attribute__((packed)) {
     uint8_t type;
-    uint8_t ply;
+    uint8_t turn_count;
     uint8_t board[25];
 } msg_move_t;
 
 typedef struct __attribute__((packed)) {
     uint8_t type;
-    uint8_t ply;
+    uint8_t turn_count;
 } msg_ack_t;
 
 static uint32_t now_ms(void)
@@ -43,7 +43,7 @@ static uint32_t now_ms(void)
 
 static void send_move(game_t *game)
 {
-    msg_move_t msg = {.type = MSG_MOVE, .ply = game->ply};
+    msg_move_t msg = {.type = MSG_MOVE, .turn_count = game->turn_count};
     for (int i = 0; i < 25; i++) {
         const struct_pieza p = game->board[i / 5][i % 5];
         msg.board[i] = p.Pieza | (p.EsBlanca ? WHITE_BIT : 0);
@@ -52,9 +52,9 @@ static void send_move(game_t *game)
     game->sent_ms = now_ms();
 }
 
-static void send_ack(uint8_t ply)
+static void send_ack(uint8_t turn_count)
 {
-    const msg_ack_t msg = {.type = MSG_ACK, .ply = ply};
+    const msg_ack_t msg = {.type = MSG_ACK, .turn_count = turn_count};
     link_send(&msg, sizeof(msg));
 }
 
@@ -67,7 +67,7 @@ void game_start(game_t *game, uint32_t seed, bool blancas)
 
 bool game_my_turn(const game_t *game)
 {
-    const bool white_to_move = game->ply % 2 == 0;
+    const bool white_to_move = game->turn_count % 2 == 0;
     return white_to_move == game->jugador.EsBlanca;
 }
 
@@ -91,7 +91,7 @@ void game_on_button(game_t *game, button_id_t key)
             /* Illegal moves do nothing (TODO: tell the player). */
             if (movimientoYCaptura(game->sel_x, game->sel_y, game->cursor_x, game->cursor_y,
                                    game->board, game->jugador)) {
-                game->ply++;
+                game->turn_count++;
                 game->sending = true;
                 send_move(game);
             }
@@ -107,7 +107,7 @@ void game_on_data(game_t *game, const uint8_t *data, size_t len)
     if (len == sizeof(msg_move_t) && data[0] == MSG_MOVE) {
         const msg_move_t *msg = (const msg_move_t *)data;
 
-        if (msg->ply == game->ply + 1 && !game_my_turn(game)) {
+        if (msg->turn_count == game->turn_count + 1 && !game_my_turn(game)) {
             /* Their move: take their board. */
             for (int i = 0; i < 25; i++) {
                 const uint8_t piece = msg->board[i] & ~WHITE_BIT;
@@ -116,18 +116,18 @@ void game_on_data(game_t *game, const uint8_t *data, size_t len)
                     .EsBlanca = msg->board[i] & WHITE_BIT,
                 };
             }
-            game->ply = msg->ply;
+            game->turn_count = msg->turn_count;
             game->sending = false;  /* they could only move after getting ours */
-            ESP_LOGI(TAG, "got move %d", game->ply);
+            ESP_LOGI(TAG, "got move %d", game->turn_count);
         }
-        if (msg->ply <= game->ply) {
-            send_ack(msg->ply);  /* new or a repeat: they resend until we answer */
+        if (msg->turn_count <= game->turn_count) {
+            send_ack(msg->turn_count);  /* new or a repeat: they resend until we answer */
         }
     } else if (len == sizeof(msg_ack_t) && data[0] == MSG_ACK) {
         const msg_ack_t *msg = (const msg_ack_t *)data;
-        if (game->sending && msg->ply == game->ply) {
+        if (game->sending && msg->turn_count == game->turn_count) {
             game->sending = false;
-            ESP_LOGI(TAG, "move %d acknowledged", game->ply);
+            ESP_LOGI(TAG, "move %d acknowledged", game->turn_count);
         }
     }
 }

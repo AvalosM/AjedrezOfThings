@@ -24,7 +24,7 @@ typedef struct {
     bool seleccionada;      /* a piece is picked up... */
     int sel_x;              /* ...from this square */
     int sel_y;
-    uint8_t ply;            /* moves made so far: white moves when it's even */
+    uint8_t turn_count;     /* moves made so far: white moves when it's even */
     bool sending;           /* our last move isn't acknowledged yet */
     uint32_t sent_ms;       /* when we last sent it */
 } game_t;
