@@ -67,10 +67,13 @@ static void draw_ui(uint32_t pressed, int mic_level, bool audio_ok)
     }
 }
 
+char player_tag[4];
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "Hackathon board demo starting");
 
+    nvs_flash_init();
     bool display_ok = display_init() == ESP_OK;
     if (!display_ok) {
         ESP_LOGE(TAG, "display init failed - continuing without screen");
@@ -97,6 +100,14 @@ void app_main(void)
     }
     vTaskDelay(pdMS_TO_TICKS(500));
 
+    bool has_name = player_profile_load(player_tag, sizeof(player_tag));
+
+    if (!has_name) {
+        player_profile_arcade_input(player_tag);
+    } else {
+        ESP_LOGI("MAIN", "Bienvenido de nuevo: %s", player_tag);
+    }
+    
     QueueHandle_t events = buttons_event_queue();
     int log_div = 0;
     while (1) {
