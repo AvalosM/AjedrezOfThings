@@ -17,6 +17,14 @@ typedef struct {
 static entry_t s_table[MAX_REMEMBERED];
 static uint32_t s_next_hello_ms;
 
+/* Order of the nearby list: by tag, then by MAC when two boards share a tag,
+ * so the order never changes while the same boards are around. */
+static bool comes_before(const link_peer_t *a, const link_peer_t *b)
+{
+    const int by_name = strcmp(a->name, b->name);
+    return by_name != 0 ? by_name < 0 : memcmp(a->mac, b->mac, 6) < 0;
+}
+
 bool presence_hello_due(uint32_t now_ms)
 {
     if ((int32_t)(now_ms - s_next_hello_ms) < 0) {
@@ -58,11 +66,11 @@ int presence_nearby(link_peer_t *out, int max, uint32_t now_ms)
         }
     }
 
-    /* Strongest signal first. Insertion sort: there are at most 16. */
+    /* Insertion sort: there are at most 16. */
     for (int i = 1; i < n; i++) {
         link_peer_t p = fresh[i];
         int j = i;
-        while (j > 0 && fresh[j - 1].rssi < p.rssi) {
+        while (j > 0 && comes_before(&p, &fresh[j - 1])) {
             fresh[j] = fresh[j - 1];
             j--;
         }

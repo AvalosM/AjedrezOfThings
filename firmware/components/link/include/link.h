@@ -60,7 +60,8 @@ typedef void (*link_cb_t)(link_event_t ev, const link_peer_t *peer, const uint8_
  * characters, sent in every frame. cb may be NULL. */
 esp_err_t link_init(const char *name, link_cb_t cb);
 
-/* Boards heard in the last 3 s, strongest signal first. Returns the count. */
+/* Boards heard in the last 3 s, sorted by tag (then MAC, if two share a tag).
+ * Returns the count. */
 int link_nearby(link_peer_t *out, int max);
 
 /* IDLE -> INVITING. who: a board from link_nearby(). Keeps asking for 15 s.
