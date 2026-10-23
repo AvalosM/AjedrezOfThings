@@ -34,11 +34,11 @@ bool makeMove(turn_result_t *out_result) {
     current_match.turn_count += 1;
     current_match.is_my_turn = false;
 
-        out_result->turn_count = current_match.turn_count;
-        out_result->board = current_match.board;
-        out_result->match_finished = current_match.finished;
-        strncpy(out_result->winner, current_match.winner, sizeof(out_result->winner) - 1);
-        out_result->winner[sizeof(out_result->winner) - 1] = '\0';
+    out_result->turn_count = current_match.turn_count;
+    out_result->board = current_match.board;
+    out_result->match_finished = !current_match.active;
+    strncpy(out_result->winner_name, current_match.winner_name, sizeof(out_result->winner_name) - 1);
+    out_result->winner_name[sizeof(out_result->winner_name) - 1] = '\0';
 
     return true;
 }
