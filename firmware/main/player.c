@@ -96,24 +96,17 @@ void player_profile_arcade_input(char *name_out)
     bool confirmed = false;
     while (!confirmed) {
         if ((xQueueReceive(buttons_queue, &button_event, portMAX_DELAY) == pdTRUE) && button_event.pressed) {
-            /*
-             * Note on joystick mapping (see board.h / main.c):
-             * Pushing UP arrives as BTN_RIGHT.
-             * Pushing DOWN arrives as BTN_LEFT.
-             * Pushing RIGHT arrives as BTN_DOWN.
-             * Pushing LEFT arrives as BTN_UP.
-             */
             switch (button_event.id) {
-            case BTN_RIGHT: /* Physical UP: next letter */
+            case BTN_RIGHT:
                 tag[current_idx] = ((tag[current_idx] - 'A' + 1) % 26) + 'A';
                 break;
-            case BTN_LEFT:  /* Physical DOWN: prev letter */
+            case BTN_LEFT:
                 tag[current_idx] = ((tag[current_idx] - 'A' + 25) % 26) + 'A';
                 break;
-            case BTN_UP:    /* Physical LEFT: prev slot */
+            case BTN_UP: 
                 current_idx = (current_idx + 2) % 3;
                 break;
-            case BTN_DOWN:  /* Physical RIGHT: next slot */
+            case BTN_DOWN:  
                 current_idx = (current_idx + 1) % 3;
                 break;
             case BTN_KEY1:
