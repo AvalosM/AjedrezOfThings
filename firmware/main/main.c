@@ -30,7 +30,7 @@
 static const char *TAG = "main";
 
 #define UI_PERIOD_MS 100    /* redraw at least this often */
-#define MAX_LISTED   4      /* boards that fit on the lobby screen */
+#define MAX_LISTED   16     /* boards in the lobby list (the screen scrolls) */
 
 static char s_name[LINK_NAME_LEN + 1];
 char player_tag[PLAYER_NAME_LEN];
@@ -50,10 +50,22 @@ static void name_from_mac(char out[LINK_NAME_LEN + 1])
 static void on_button(button_id_t key)
 {
     switch (link_get_state(NULL)) {
-    case LINK_IDLE:
-        /* TODO lobby: move s_selected through link_nearby(), and invite the
-         * selected board with link_invite(). Boards with .busy set won't answer. */
+    case LINK_IDLE: {
+        link_peer_t nearby[MAX_LISTED];
+        const int n = link_nearby(nearby, MAX_LISTED);
+        if (n == 0) {
+            break;
+        }
+        if (s_selected >= n) {
+            s_selected = 0;  /* a board left the list */
+        }
+        if (key == BTN_KEY3) {
+            s_selected = (s_selected + 1) % n;
+        } else if (key == BTN_KEY1 && !nearby[s_selected].busy) {
+            link_invite(&nearby[s_selected]);  /* busy boards wouldn't answer */
+        }
         break;
+    }
     case LINK_INVITING:
         /* TODO: let the player cancel with link_hangup(). */
         break;
@@ -95,9 +107,14 @@ static void draw(void)
     link_peer_t nearby[MAX_LISTED];
 
     switch (link_get_state(&peer)) {
-    case LINK_IDLE:
-        screen_lobby(s_name, nearby, link_nearby(nearby, MAX_LISTED), s_selected);
+    case LINK_IDLE: {
+        const int n = link_nearby(nearby, MAX_LISTED);
+        if (s_selected >= n) {
+            s_selected = 0;  /* a board left the list */
+        }
+        screen_lobby(s_name, nearby, n, s_selected);
         break;
+    }
     case LINK_INVITING:
         screen_inviting(&peer);
         break;

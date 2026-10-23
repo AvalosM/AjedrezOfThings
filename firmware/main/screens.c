@@ -4,6 +4,8 @@
 
 #include "screens.h"
 
+#define PEER_ROWS 4
+
 /* Inverted bar across the top. */
 static void title(const char *text)
 {
@@ -17,10 +19,24 @@ void screen_lobby(const char *me, const link_peer_t *nearby, int n, int selected
     display_clear();
     snprintf(line, sizeof(line), "LOBBY  me:%s", me);
     title(line);
-    /* TODO: list the nearby boards (name, signal, busy) and mark the
-     * selected one; show which keys do what. */
-    snprintf(line, sizeof(line), "%d nearby", n);
-    display_text(0, 16, line, false);
+
+    if (n == 0) {
+        display_text(0, 16, "nobody nearby...", false);
+    }
+
+    /* First row to draw: 0 until the selection passes the last row, then
+       scroll so the selected board stays on the bottom row. */
+    int first = selected < PEER_ROWS ? 0 : selected - PEER_ROWS + 1;
+    for (int i = first; i < n && i < first + PEER_ROWS; i++) {
+        snprintf(line, sizeof(line), "%c %s %4ddBm%s", i == selected ? '>' : ' ',
+                 nearby[i].name, nearby[i].rssi, nearby[i].busy ? " busy" : "");
+        display_text(0, 14 + (i - first) * 9, line, false);
+    }
+    if (first + PEER_ROWS < n) {
+        display_text(120, 41, "v", false);  /* more below */
+    }
+
+    display_text(0, 56, "K3 next  K1 invite", false);
     display_flush();
 }
 
