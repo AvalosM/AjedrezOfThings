@@ -1,0 +1,14 @@
+# Local ESP-IDF checkout
+esp-idf/
+
+# ESP-IDF build output
+build/
+managed_components/
+sdkconfig
+sdkconfig.old
+dependencies.lock
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
