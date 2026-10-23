@@ -59,7 +59,7 @@ static void on_button(button_id_t key)
         if (s_selected >= n) {
             s_selected = 0;  /* a board left the list */
         }
-        if (key == BTN_KEY3) {
+        if (key == BTN_KEY2) {
             s_selected = (s_selected + 1) % n;
         } else if (key == BTN_KEY1 && !nearby[s_selected].busy) {
             link_invite(&nearby[s_selected]);  /* busy boards wouldn't answer */
@@ -67,13 +67,22 @@ static void on_button(button_id_t key)
         break;
     }
     case LINK_INVITING:
-        /* TODO: let the player cancel with link_hangup(). */
+        if (key == BTN_KEY2) {
+            link_hangup();
+        }
         break;
     case LINK_INVITED:
-        /* TODO: link_accept(), or link_hangup() to decline. */
+        if (key == BTN_KEY1) {
+            link_accept();
+        } else if (key == BTN_KEY2) {
+            link_hangup();
+        }
         break;
     case LINK_CONNECTED:
-        /* TODO: send something with link_send(), or link_hangup(). */
+        /* TODO: send something with link_send(). */
+        if (key == BTN_KEY2) {
+            link_hangup();
+        }
         break;
     }
 }
