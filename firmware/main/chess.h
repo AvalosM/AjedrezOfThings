@@ -32,9 +32,8 @@ typedef struct {
 /* The letter shown for a piece: A C P T R D, ' ' for an empty square. */
 char pieza_a_char(TiposDePiezaYCasillaDefault p);
 
-/* Random start: 5 white pieces on rows 0-1, mirrored as black on rows 3-4.
- * The same seed always gives the same board, so both players see the same one. */
-void iniciarTablero(struct_pieza board[5][5], uint32_t seed);
+/* Random start: 5 white pieces on rows 0-1, mirrored as black on rows 3-4. */
+void iniciarTablero(struct_pieza board[5][5]);
 
 /* If moving (x_init, y_init) -> (x_end, y_end) is legal for jugador, makes the
  * move (capture and promotion included) and returns true. If not, leaves the

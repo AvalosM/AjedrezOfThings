@@ -4,9 +4,9 @@
  * game: a match as played on this board: the pieces, our color, the cursor
  * the joystick moves, and keeping the other board in sync.
  *
- * After each of our moves we send the whole board to the other board (MOVE)
- * and resend it every 300 ms until it answers (ACK). See game.c for the
- * message format.
+ * White makes the starting board and sends it (START). After each move the
+ * mover sends the whole board (MOVE). Both are resent every 300 ms until the
+ * other board answers (ACK). See game.c for the message format.
  */
 
 #include <stdbool.h>
@@ -24,13 +24,15 @@ typedef struct {
     bool seleccionada;      /* a piece is picked up... */
     int sel_x;              /* ...from this square */
     int sel_y;
+    bool started;           /* we have the board (black waits for white's START) */
     uint8_t turn_count;     /* moves made so far: white moves when it's even */
-    bool sending;           /* our last move isn't acknowledged yet */
+    bool sending;           /* our last START/MOVE isn't acknowledged yet */
     uint32_t sent_ms;       /* when we last sent it */
 } game_t;
 
-/* New board from seed; blancas: we play white. */
-void game_start(game_t *game, uint32_t seed, bool blancas);
+/* New match. blancas: we play white, make the board and send it (START).
+ * Otherwise we wait for the other board's START. */
+void game_start(game_t *game, bool blancas);
 
 bool game_my_turn(const game_t *game);
 

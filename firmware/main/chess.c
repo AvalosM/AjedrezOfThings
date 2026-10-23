@@ -1,5 +1,7 @@
 #include <stdlib.h>
 
+#include "esp_random.h"
+
 #include "chess.h"
 
 static const char s_pieza_char[] = {
@@ -37,12 +39,9 @@ static bool camino_libre(int x_init, int y_init, int x_end, int y_end, struct_pi
     return true;
 }
 
-void iniciarTablero(struct_pieza board[5][5], uint32_t seed)
+void iniciarTablero(struct_pieza board[5][5])
 {
     int piezasAiniciar = 5;
-
-    // Misma seed -> mismos números -> mismo tablero en las dos placas
-    srand(seed);
 
     // 1. Vaciar el tablero
     for (int y = 0; y < 5; y++) {
@@ -59,7 +58,7 @@ void iniciarTablero(struct_pieza board[5][5], uint32_t seed)
 
     // 3. Mezclarlas al azar (Fisher-Yates) para elegir posiciones sin repetir
     for (int i = 9; i > 0; i--) {
-        int j = rand() % (i + 1);
+        int j = esp_random() % (i + 1);
         int tmp = casillas[i];
         casillas[i] = casillas[j];
         casillas[j] = tmp;
@@ -67,7 +66,7 @@ void iniciarTablero(struct_pieza board[5][5], uint32_t seed)
 
     // 4. Colocar cada pieza blanca y su espejo negro
     for (int i = 0; i < piezasAiniciar; i++) {
-        TiposDePiezaYCasillaDefault tipo = rand() % Vacia;  // de Alfil a Dama, nunca Vacia
+        TiposDePiezaYCasillaDefault tipo = esp_random() % Vacia;  // de Alfil a Dama, nunca Vacia
 
         int y = casillas[i] / 5;
         int x = casillas[i] % 5;

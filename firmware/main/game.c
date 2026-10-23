@@ -15,24 +15,27 @@ static const char *TAG = "game";
 /*
  * Messages to the other board, sent with link_send():
  *
- *   MOVE  type=1, turn_count, board[25]   the board after move number turn_count
- *   ACK   type=2, turn_count              "I have move number turn_count"
+ *   START type=3, turn_count=0, board[25]   the starting board (white sends it)
+ *   MOVE  type=1, turn_count, board[25]     the board after move number turn_count
+ *   ACK   type=2, turn_count                "I have the board for turn_count"
  *
- * board[] goes row by row (board[y * 5 + x]). Each square is one byte: the
- * piece (TiposDePiezaYCasillaDefault) in the low bits, plus 0x80 if white.
+ * START and MOVE are resent every 300 ms until the ACK arrives, and only one
+ * is in flight at a time. board[] goes row by row (board[y * 5 + x]). Each
+ * square is one byte: the piece (TiposDePiezaYCasillaDefault) in the low
+ * bits, plus 0x80 if white.
  */
-enum { MSG_MOVE = 1, MSG_ACK = 2 };
+enum { MSG_MOVE = 1, MSG_ACK = 2, MSG_START = 3 };
 
 #define WHITE_BIT 0x80
 
 typedef struct __attribute__((packed)) {
-    uint8_t type;
+    uint8_t type;           /* MSG_START or MSG_MOVE */
     uint8_t turn_count;
     uint8_t board[25];
-} msg_move_t;
+} msg_board_t;
 
 typedef struct __attribute__((packed)) {
-    uint8_t type;
+    uint8_t type;           /* MSG_ACK */
     uint8_t turn_count;
 } msg_ack_t;
 
@@ -41,9 +44,13 @@ static uint32_t now_ms(void)
     return xTaskGetTickCount() * portTICK_PERIOD_MS;
 }
 
-static void send_move(game_t *game)
+/* START before the first move, MOVE after. */
+static void send_board(game_t *game)
 {
-    msg_move_t msg = {.type = MSG_MOVE, .turn_count = game->turn_count};
+    msg_board_t msg = {
+        .type = game->turn_count == 0 ? MSG_START : MSG_MOVE,
+        .turn_count = game->turn_count,
+    };
     for (int i = 0; i < 25; i++) {
         const struct_pieza p = game->board[i / 5][i % 5];
         msg.board[i] = p.Pieza | (p.EsBlanca ? WHITE_BIT : 0);
@@ -52,23 +59,42 @@ static void send_move(game_t *game)
     game->sent_ms = now_ms();
 }
 
+static void take_board(game_t *game, const msg_board_t *msg)
+{
+    for (int i = 0; i < 25; i++) {
+        const uint8_t piece = msg->board[i] & ~WHITE_BIT;
+        game->board[i / 5][i % 5] = (struct_pieza){
+            .Pieza = piece <= Vacia ? piece : Vacia,
+            .EsBlanca = msg->board[i] & WHITE_BIT,
+        };
+    }
+    game->turn_count = msg->turn_count;
+}
+
 static void send_ack(uint8_t turn_count)
 {
     const msg_ack_t msg = {.type = MSG_ACK, .turn_count = turn_count};
     link_send(&msg, sizeof(msg));
 }
 
-void game_start(game_t *game, uint32_t seed, bool blancas)
+void game_start(game_t *game, bool blancas)
 {
     memset(game, 0, sizeof(*game));
-    iniciarTablero(game->board, seed);
     game->jugador.EsBlanca = blancas;
+
+    /* White makes the board and sends it; black waits for it. */
+    if (blancas) {
+        iniciarTablero(game->board);
+        game->started = true;
+        game->sending = true;
+        send_board(game);
+    }
 }
 
 bool game_my_turn(const game_t *game)
 {
     const bool white_to_move = game->turn_count % 2 == 0;
-    return white_to_move == game->jugador.EsBlanca;
+    return game->started && white_to_move == game->jugador.EsBlanca;
 }
 
 void game_on_button(game_t *game, button_id_t key)
@@ -82,7 +108,7 @@ void game_on_button(game_t *game, button_id_t key)
         game->cursor_x++;
     } else if (key == BTN_UP && game->cursor_y < 4) {
         game->cursor_y++;
-    } else if (key == BTN_KEY1 && game_my_turn(game)) {
+    } else if (key == BTN_KEY1 && game_my_turn(game) && !game->sending) {
         if (!game->seleccionada) {
             game->seleccionada = true;
             game->sel_x = game->cursor_x;
@@ -93,7 +119,7 @@ void game_on_button(game_t *game, button_id_t key)
                                    game->board, game->jugador)) {
                 game->turn_count++;
                 game->sending = true;
-                send_move(game);
+                send_board(game);
             }
             game->seleccionada = false;
         }
@@ -104,30 +130,29 @@ void game_on_button(game_t *game, button_id_t key)
 
 void game_on_data(game_t *game, const uint8_t *data, size_t len)
 {
-    if (len == sizeof(msg_move_t) && data[0] == MSG_MOVE) {
-        const msg_move_t *msg = (const msg_move_t *)data;
+    if (len == sizeof(msg_board_t) && (data[0] == MSG_START || data[0] == MSG_MOVE)) {
+        const msg_board_t *msg = (const msg_board_t *)data;
 
-        if (msg->turn_count == game->turn_count + 1 && !game_my_turn(game)) {
-            /* Their move: take their board. */
-            for (int i = 0; i < 25; i++) {
-                const uint8_t piece = msg->board[i] & ~WHITE_BIT;
-                game->board[i / 5][i % 5] = (struct_pieza){
-                    .Pieza = piece <= Vacia ? piece : Vacia,
-                    .EsBlanca = msg->board[i] & WHITE_BIT,
-                };
-            }
-            game->turn_count = msg->turn_count;
-            game->sending = false;  /* they could only move after getting ours */
-            ESP_LOGI(TAG, "got move %d", game->turn_count);
+        bool take;
+        if (data[0] == MSG_START) {
+            take = !game->started;  /* the starting board, only once */
+        } else {
+            take = game->started && msg->turn_count == game->turn_count + 1 && !game_my_turn(game);
         }
-        if (msg->turn_count <= game->turn_count) {
+        if (take) {
+            take_board(game, msg);
+            game->started = true;
+            game->sending = false;  /* they could only send this after getting ours */
+            ESP_LOGI(TAG, "got the board for turn %d", game->turn_count);
+        }
+        if (game->started && msg->turn_count <= game->turn_count) {
             send_ack(msg->turn_count);  /* new or a repeat: they resend until we answer */
         }
     } else if (len == sizeof(msg_ack_t) && data[0] == MSG_ACK) {
         const msg_ack_t *msg = (const msg_ack_t *)data;
         if (game->sending && msg->turn_count == game->turn_count) {
             game->sending = false;
-            ESP_LOGI(TAG, "move %d acknowledged", game->turn_count);
+            ESP_LOGI(TAG, "turn %d acknowledged", game->turn_count);
         }
     }
 }
@@ -135,6 +160,6 @@ void game_on_data(game_t *game, const uint8_t *data, size_t len)
 void game_tick(game_t *game)
 {
     if (game->sending && now_ms() - game->sent_ms >= RESEND_MS) {
-        send_move(game);
+        send_board(game);
     }
 }

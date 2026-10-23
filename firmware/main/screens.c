@@ -140,10 +140,12 @@ void screen_match(const link_peer_t *peer, const game_t *game)
     snprintf(line, sizeof(line), "vs %s", peer->name);
     display_text(62, 6, line, false);
     display_text(62, 16, game->jugador.EsBlanca ? "you: white" : "you: black", false);
-    if (game_my_turn(game)) {
-        display_text(62, 26, "your turn", false);
+    if (game->sending) {
+        display_text(62, 26, "sending...", false);
+    } else if (!game->started) {
+        display_text(62, 26, "waiting...", false);
     } else {
-        display_text(62, 26, game->sending ? "sending..." : "their turn", false);
+        display_text(62, 26, game_my_turn(game) ? "your turn" : "their turn", false);
     }
     display_text(62, 36, game->seleccionada ? "K1 move" : "K1 pick", false);
     display_text(62, 46, "K2 back", false);
