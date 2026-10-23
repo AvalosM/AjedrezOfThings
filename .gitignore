@@ -13,3 +13,6 @@ dependencies.lock
 .idea/
 .DS_Store
 *.log
+
+# Python
+__pycache__/
