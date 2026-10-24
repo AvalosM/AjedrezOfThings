@@ -88,8 +88,37 @@ void screen_lobby(const char *me, const link_peer_t *nearby, int n, int selected
     if (n > 0) {
         const int btn_y = BOARD_LCD_HEIGHT - DISPLAY_FONT_H - 1;
         display_text(0, btn_y, "retar", false);
-        display_text(50, btn_y, "sig", false);
+        display_text(40, btn_y, "sig", false);
+        display_text(76, btn_y, "CPU", false);
+        display_text(108, btn_y, "2P", false);
+    } else {
+        const int btn_y = BOARD_LCD_HEIGHT - DISPLAY_FONT_H - 1;
+        display_text(16, btn_y, "B3:CPU", false);
+        display_text(76, btn_y, "B4:2P", false);
     }
+    display_flush();
+}
+
+void screen_cpu_menu(ai_difficulty_t diff, int color_choice)
+{
+    display_clear();
+    title("MODO VS CPU");
+
+    const char *diff_names[] = {"FACIL", "MEDIO", "DIFICIL"};
+    const char *color_names[] = {"BLANCAS", "NEGRAS", "AZAR"};
+
+    char line[32];
+    snprintf(line, sizeof(line), "Nivel: %s", diff_names[diff % 3]);
+    display_text(4, 18, line, false);
+
+    snprintf(line, sizeof(line), "Color: %s", color_names[color_choice % 3]);
+    display_text(4, 32, line, false);
+
+    const int btn_y = BOARD_LCD_HEIGHT - DISPLAY_FONT_H - 1;
+    display_text(0, btn_y, "jugar", false);
+    display_text(36, btn_y, "nivel", false);
+    display_text(74, btn_y, "color", false);
+    display_text(106, btn_y, "atras", false);
     display_flush();
 }
 
@@ -147,33 +176,44 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
     display_clear();
 
     if (match->is_game_over) {
-        const bool i_won = (match->winner_name[0] != '\0' &&
-                            strcmp(match->winner_name, match->my_name) == 0);
-
-        if (i_won) {
-            display_text_centered(8, "Ganaste!", true);
+        if (match->mode == MATCH_MODE_PASS_AND_PLAY) {
+            display_text_centered(8, "Fin de juego!", true);
+            snprintf(line, sizeof(line), "Gana: %s", match->winner_name);
+            display_text_centered(24, line, false);
             if (match->game_over_reason == GAME_OVER_TIMEOUT) {
-                snprintf(line, sizeof(line), "%s se quedo", match->rival.name);
-                display_text_centered(24, line, false);
-                display_text_centered(36, "sin tiempo", false);
+                display_text_centered(36, "por tiempo", false);
             } else if (match->game_over_reason == GAME_OVER_NO_PIECES) {
-                display_text_centered(24, "Comiste todas", false);
-                display_text_centered(36, "las piezas", false);
-            } else {
-                snprintf(line, sizeof(line), "Gana: %s", match->winner_name);
-                display_text_centered(28, line, false);
+                display_text_centered(36, "por captura", false);
             }
         } else {
-            display_text_centered(8, "Perdiste!", true);
-            if (match->game_over_reason == GAME_OVER_TIMEOUT) {
-                display_text_centered(24, "Te quedaste", false);
-                display_text_centered(36, "sin tiempo", false);
-            } else if (match->game_over_reason == GAME_OVER_NO_PIECES) {
-                display_text_centered(24, "Te quedaste", false);
-                display_text_centered(36, "sin piezas", false);
+            const bool i_won = (match->winner_name[0] != '\0' &&
+                                strcmp(match->winner_name, match->my_name) == 0);
+
+            if (i_won) {
+                display_text_centered(8, "Ganaste!", true);
+                if (match->game_over_reason == GAME_OVER_TIMEOUT) {
+                    snprintf(line, sizeof(line), "%s se quedo", match->rival.name);
+                    display_text_centered(24, line, false);
+                    display_text_centered(36, "sin tiempo", false);
+                } else if (match->game_over_reason == GAME_OVER_NO_PIECES) {
+                    display_text_centered(24, "Comiste todas", false);
+                    display_text_centered(36, "las piezas", false);
+                } else {
+                    snprintf(line, sizeof(line), "Gana: %s", match->winner_name);
+                    display_text_centered(28, line, false);
+                }
             } else {
-                snprintf(line, sizeof(line), "Gana: %s", match->winner_name);
-                display_text_centered(28, line, false);
+                display_text_centered(8, "Perdiste!", true);
+                if (match->game_over_reason == GAME_OVER_TIMEOUT) {
+                    display_text_centered(24, "Te quedaste", false);
+                    display_text_centered(36, "sin tiempo", false);
+                } else if (match->game_over_reason == GAME_OVER_NO_PIECES) {
+                    display_text_centered(24, "Te quedaste", false);
+                    display_text_centered(36, "sin piezas", false);
+                } else {
+                    snprintf(line, sizeof(line), "Gana: %s", match->winner_name);
+                    display_text_centered(28, line, false);
+                }
             }
         }
 
@@ -227,16 +267,29 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
     }
 
     // Right of the board: who we play, our color, whose turn, timer, and keys.
-    snprintf(line, sizeof(line), "vs %s", match->rival.name);
-    display_text(62, 6, line, false);
-    display_text(62, 16, match->my_color == COLOR_WHITE ? "tu: blancas" : "tu: negras", false);
-    if (!match->started) {
-        display_text(62, 26, "espera...", false);
+    if (match->mode == MATCH_MODE_PASS_AND_PLAY) {
+        bool white_turn = (match->turn_count % 2 == 0);
+        display_text(62, 6, "1vs1 Local", false);
+        display_text(62, 16, white_turn ? "T: BLANCAS" : "T: NEGRAS", true);
+        int cur_time = white_turn ? match->my_time_s : match->rival_time_s;
+        int m = cur_time / 60;
+        int s = cur_time % 60;
+        snprintf(line, sizeof(line), "%02d:%02d", m, s);
+        display_text(62, 26, line, false);
     } else {
-        int m = match->my_time_s / 60;
-        int s = match->my_time_s % 60;
-        snprintf(line, sizeof(line), "%s %02d:%02d", match_my_turn() ? "TU" : "RIV", m, s);
-        display_text(62, 26, line, match_my_turn());
+        snprintf(line, sizeof(line), "vs %s", match->rival.name);
+        display_text(62, 6, line, false);
+        display_text(62, 16, match->my_color == COLOR_WHITE ? "tu: blancas" : "tu: negras", false);
+        if (!match->started) {
+            display_text(62, 26, "espera...", false);
+        } else if (match->cpu_thinking) {
+            display_text(62, 26, "CPU piensa", true);
+        } else {
+            int m = match->my_time_s / 60;
+            int s = match->my_time_s % 60;
+            snprintf(line, sizeof(line), "%s %02d:%02d", match_my_turn() ? "TU" : "RIV", m, s);
+            display_text(62, 26, line, match_my_turn());
+        }
     }
     if (invalid_move_alert_time > 0) {
         display_text(62, 36, "Movimiento", false);

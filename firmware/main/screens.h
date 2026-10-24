@@ -14,4 +14,5 @@ void screen_lobby(const char *me, const link_peer_t *nearby, int n, int selected
 void screen_inviting(const link_peer_t *peer);
 void screen_invited(const link_peer_t *peer);
 void screen_connected(const link_peer_t *peer);
+void screen_cpu_menu(ai_difficulty_t diff, int color_choice);
 void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x, int picked_y, bool picked, bool is_invalid_move);

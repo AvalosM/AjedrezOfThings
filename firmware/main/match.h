@@ -21,6 +21,7 @@
 
 #include "esp_err.h"
 
+#include "ai.h"
 #include "chessboard.h"
 #include "link.h"
 
@@ -35,25 +36,47 @@ typedef enum {
     GAME_OVER_NO_PIECES = 2,
 } game_over_reason_t;
 
+typedef enum {
+    MATCH_MODE_ONLINE = 0,
+    MATCH_MODE_CPU,
+    MATCH_MODE_PASS_AND_PLAY,
+} match_mode_t;
+
 #define MATCH_TIME_SECONDS 120  
 
 typedef struct {
     bool active;                /* a match is running */
     bool started;               /* we have the board (black waits for white's first STATE) */
+    match_mode_t mode;
     player_color_t my_color;
     char my_name[LINK_NAME_LEN + 1];
     link_peer_t rival;
     uint8_t turn_count;         /* moves made so far: white moves when it's even */
     board_t board;
     int32_t my_time_s;         
+    int32_t rival_time_s;       /* for pass & play: player 2 time */
     bool is_game_over;     
     game_over_reason_t game_over_reason;
     char winner_name[LINK_NAME_LEN + 1];
     uint32_t game_over_since_ms;
+    ai_difficulty_t ai_diff;
+    bool cpu_thinking;
 } match_t;
 
 /* Initialize match system with our player name. */
 void match_init(const char *my_name);
+
+/* Start a match against local CPU/AI. */
+esp_err_t match_start_cpu(player_color_t user_color, ai_difficulty_t difficulty);
+
+/* Start a local 2-player pass and play match. */
+esp_err_t match_start_pass_and_play(void);
+
+/* Check if a match is currently active. */
+bool match_is_active(void);
+
+/* Whichever player's turn it is: is it white's turn? */
+bool match_current_turn_is_white(void);
 
 /* Accept the invite we got: connects the link and starts a match as black. */
 esp_err_t match_accept(void);
