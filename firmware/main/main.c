@@ -116,7 +116,11 @@ static void on_button(button_id_t key)
         }
         break;
     case LINK_CONNECTED:
-        if (key == BTN_KEY4) {
+        if (match_get()->is_game_over) {
+            if (key == BTN_KEY4 || key == BTN_KEY1) {
+                match_quit();
+            }
+        } else if (key == BTN_KEY4) {
             match_quit();
         } else {
             on_match_button(key);
@@ -190,11 +194,14 @@ void app_main(void)
         name_from_mac(player_tag);
         player_profile_arcade_input(player_tag);
     } else {
-        ESP_LOGI(TAG, "Bienvenido de nuevo: %s", player_tag);
+        if (player_welcome_screen(player_tag, 3000)) {
+            player_profile_arcade_input(player_tag);
+        }
     }
     snprintf(s_name, sizeof(s_name), "%s", player_tag);
 
     events_init();
+    match_init(s_name);
     ESP_ERROR_CHECK(link_init(s_name, events_on_link));
 
     while (1) {

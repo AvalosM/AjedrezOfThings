@@ -30,6 +30,18 @@ static void display_button_options(const char **options, int len) {
     }
 }
 
+void screen_welcome(const char *name)
+{
+    display_clear();
+
+    display_text(34, 8, "BIENVENIDO", false);
+    display_draw_rect(44, 22, 40, 18);
+    display_text(55, 27, name, false);
+
+    display_button_options((const char *[]){"ok", "edit"}, 2);
+    display_flush();
+}
+
 void screen_lobby(const char *me, const link_peer_t *nearby, int n, int selected)
 {
     char line[24];
@@ -108,6 +120,22 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, bool picked)
 
     display_clear();
 
+    if (match->is_game_over) {
+        display_text(37, 10, "GAME OVER", false);
+        if (match->game_over_reason == GAME_OVER_TIMEOUT) {
+            display_text(31, 24, "* TIMEOUT *", true);
+        } else if (match->game_over_reason == GAME_OVER_NO_PIECES) {
+            display_text(22, 24, "* SIN PIEZAS *", true);
+        } else {
+            display_text(28, 24, "* VICTORIA *", true);
+        }
+        snprintf(line, sizeof(line), "GANA: %s", match->winner_name);
+        display_text(37, 38, line, false);
+        display_text(34, 52, "K4: volver", false);
+        display_flush();
+        return;
+    }
+
     // Tablero: casillas de 10 px cada 11 px, desde (0, 6). La casilla del
     // cursor se dibuja sin borde.
     int y_pos = 6;
@@ -136,14 +164,17 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, bool picked)
         y_pos += 11;
     }
 
-    // Right of the board: who we play, our color, whose turn, and the keys.
+    // Right of the board: who we play, our color, whose turn, timer, and keys.
     snprintf(line, sizeof(line), "vs %s", match->rival.name);
     display_text(62, 6, line, false);
     display_text(62, 16, match->my_color == COLOR_WHITE ? "you: white" : "you: black", false);
     if (!match->started) {
         display_text(62, 26, "waiting...", false);
     } else {
-        display_text(62, 26, match_my_turn() ? "your turn" : "their turn", false);
+        int m = match->my_time_s / 60;
+        int s = match->my_time_s % 60;
+        snprintf(line, sizeof(line), "%s %02d:%02d", match_my_turn() ? "YOU" : "THEM", m, s);
+        display_text(62, 26, line, match_my_turn());
     }
     display_text(62, 36, picked ? "K1 move" : "K1 pick", false);
     display_text(62, 46, "K2 back", false);

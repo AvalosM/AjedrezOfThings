@@ -14,6 +14,7 @@
 
 #include "buttons.h"
 #include "display.h"
+#include "screens.h"
 
 static const char *TAG = "PROFILE";
 #define NVS_NAMESPACE "arcade_cfg"
@@ -135,3 +136,30 @@ void player_profile_arcade_input(char *name_out)
     display_flush();
     vTaskDelay(pdMS_TO_TICKS(1200));
 }
+
+bool player_welcome_screen(const char *name, uint32_t timeout_ms)
+{
+    screen_welcome(name);
+
+    QueueHandle_t buttons_queue = buttons_event_queue();
+    button_event_t ev;
+
+    TickType_t start = xTaskGetTickCount();
+    TickType_t wait_ticks = pdMS_TO_TICKS(timeout_ms);
+
+    while ((xTaskGetTickCount() - start) < wait_ticks) {
+        TickType_t elapsed = xTaskGetTickCount() - start;
+        TickType_t remaining = (elapsed < wait_ticks) ? (wait_ticks - elapsed) : 0;
+
+        if (xQueueReceive(buttons_queue, &ev, remaining) == pdTRUE && ev.pressed) {
+            if (ev.id == BTN_KEY2) {
+                return true;
+            } else if (ev.id == BTN_KEY1 || ev.id == BTN_CENTER) {
+                return false;
+            }
+        }
+    }
+
+    return false;
+}
+

@@ -49,6 +49,9 @@ void iniciarTablero(struct_pieza board[5][5]);
 bool movimientoYCaptura(int x_init, int y_init, int x_end, int y_end,
                         struct_pieza board[5][5], Jugador jugador);
 
+/* Counts pieces of the given color currently on the board. */
+int contarPiezas(const struct_pieza board[5][5], bool esBlanca);
+
 /* The board as BOARD_BYTES bytes, row by row (y * 5 + x): the piece in the
  * low bits, plus 0x80 if white. */
 void board_to_bytes(const board_t *board, uint8_t out[BOARD_BYTES]);

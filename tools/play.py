@@ -134,17 +134,18 @@ class Game:
         return self.started and (self.turn_count % 2 == 0) == self.white
 
     def _send_state(self):
-        self.link.send_data(bytes([MSG_STATE, self.turn_count & 0xFF]) + bytes(self.board))
+        msg = bytearray([MSG_STATE, self.turn_count & 0xFF]) + bytes(self.board) + bytes([0, 0, 0, 0, 0])
+        self.link.send_data(bytes(msg))
         self.sent_at = time.time()
 
     def on_data(self, data):
         """The other side's STATE: take its board if it's newer. True if it was."""
-        if len(data) != 27 or data[0] != MSG_STATE:
+        if len(data) < 27 or data[0] != MSG_STATE:
             return False
         turn = data[1]
-        if self.started and turn <= self.turn_count:
+        if self.started and turn <= self.turn_count and not (len(data) >= 32 and data[27] != 0):
             return False  # nothing new: we already have this turn
-        self.board = [sq if piece(sq) <= VACIA else VACIA for sq in data[2:]]
+        self.board = [sq if piece(sq) <= VACIA else VACIA for sq in data[2:27]]
         self.turn_count = turn
         self.started = True
         return True

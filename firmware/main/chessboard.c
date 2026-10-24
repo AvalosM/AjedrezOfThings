@@ -152,6 +152,19 @@ bool movimientoYCaptura(int x_init, int y_init, int x_end, int y_end,
     return true;
 }
 
+int contarPiezas(const struct_pieza board[5][5], bool esBlanca)
+{
+    int count = 0;
+    for (int y = 0; y < 5; y++) {
+        for (int x = 0; x < 5; x++) {
+            if (board[y][x].Pieza != Vacia && board[y][x].EsBlanca == esBlanca) {
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
 #define WHITE_BIT 0x80
 
 void board_to_bytes(const board_t *board, uint8_t out[BOARD_BYTES])
