@@ -76,7 +76,7 @@ static void render_arcade_screen(const char *tag, int current_slot)
         }
     }
 
-    display_text(12, 54, "[KEY1] CONFIRMAR", false);
+    display_text(12, 54, "[B1] CONFIRMAR", false);
     display_flush();
 }
 
