@@ -54,7 +54,7 @@ void screen_welcome(const char *name)
     display_draw_rect(44, 22, 40, 18);
     display_text(55, 27, name, false);
 
-    display_button_options((const char *[]){"ok", "edit"}, 2);
+    display_button_options((const char *[]){"ok", "editar"}, 2);
     display_flush();
 }
 
@@ -63,11 +63,11 @@ void screen_lobby(const char *me, const link_peer_t *nearby, int n, int selected
     char line[24];
 
     display_clear();
-    snprintf(line, sizeof(line), "LOBBY  me:%s", me);
+    snprintf(line, sizeof(line), "SALA   yo:%s", me);
     title(line);
 
     if (n == 0) {
-        display_text(0, 16, "nobody nearby...", false);
+        display_text(0, 16, "nadie cerca...", false);
     }
 
     /* First row to draw: 0 until the selection passes the last row, then
@@ -75,47 +75,49 @@ void screen_lobby(const char *me, const link_peer_t *nearby, int n, int selected
     int first = selected < PEER_ROWS ? 0 : selected - PEER_ROWS + 1;
     for (int i = first; i < n && i < first + PEER_ROWS; i++) {
         snprintf(line, sizeof(line), "%c %s %4ddBm%s", i == selected ? '>' : ' ',
-                 nearby[i].name, nearby[i].rssi, nearby[i].busy ? " busy" : "");
+                 nearby[i].name, nearby[i].rssi, nearby[i].busy ? " ocup" : "");
         display_text(0, 14 + (i - first) * 9, line, false);
     }
     if (first + PEER_ROWS < n) {
         display_text(120, 41, "v", false);  /* more below */
     }
 
-    display_button_options((const char *[]){"ok", "next"}, 2);
+    const int btn_y = BOARD_LCD_HEIGHT - DISPLAY_FONT_H - 1;
+    display_text(0, btn_y, "retar", false);
+    display_text(50, btn_y, "sig", false);
     display_flush();
 }
 
 void screen_inviting(const link_peer_t *peer)
 {
     display_clear();
-    title("INVITING");
+    title("INVITANDO");
     char line[24];
-    snprintf(line, sizeof(line), "waiting for %s", peer->name);
+    snprintf(line, sizeof(line), "esperando a %s", peer->name);
     display_text(0, 16, line, false);
-    display_button_options((const char *[]){"cancel"}, 1);
+    display_button_options((const char *[]){"cancelar"}, 1);
     display_flush();
 }
 
 void screen_invited(const link_peer_t *peer)
 {
     display_clear();
-    title("INVITED");
+    title("DESAFIO");
     char line[24];
-    snprintf(line, sizeof(line), "invited by %s", peer->name);
+    snprintf(line, sizeof(line), "te reta %s", peer->name);
     display_text(0, 16, line, false);
-    display_button_options((const char *[]){"yes", "no"}, 2);
+    display_button_options((const char *[]){"si", "no"}, 2);
     display_flush();
 }
 
 void screen_connected(const link_peer_t *peer)
 {
     display_clear();
-    title("CONNECTED");
+    title("CONECTADO");
     char line[24];
-    snprintf(line, sizeof(line), "connected to %s", peer->name);
+    snprintf(line, sizeof(line), "conectado a %s", peer->name);
     display_text(0, 16, line, false);
-    display_button_options((const char *[]){"hang"}, 1);
+    display_button_options((const char *[]){"salir"}, 1);
     display_flush();
 }
 
@@ -170,21 +172,13 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
             }
         }
 
-        display_text_centered(52, "K4: volver", false);
+        display_text_centered(52, "B4: volver", false);
         display_flush();
         return;
     }
 
     if (is_invalid_move) {
         invalid_move_alert_time = ALERT_TIME_MS;
-    }
-
-    if (invalid_move_alert_time > 0) {
-        display_text(62, 36,"Movimiento", false);
-        display_text(62, 46, "Invalido", false);
-        invalid_move_alert_time -= UI_PERIOD_MS;
-    } else {
-        invalid_move_alert_time = 0;
     }
 
     // Board: squares of 11 px every 12 px, from (0, 2). The cursor
@@ -230,15 +224,24 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
     // Right of the board: who we play, our color, whose turn, timer, and keys.
     snprintf(line, sizeof(line), "vs %s", match->rival.name);
     display_text(62, 6, line, false);
-    display_text(62, 16, match->my_color == COLOR_WHITE ? "you: white" : "you: black", false);
+    display_text(62, 16, match->my_color == COLOR_WHITE ? "tu: blancas" : "tu: negras", false);
     if (!match->started) {
-        display_text(62, 26, "waiting...", false);
+        display_text(62, 26, "espera...", false);
     } else {
         int m = match->my_time_s / 60;
         int s = match->my_time_s % 60;
-        snprintf(line, sizeof(line), "%s %02d:%02d", match_my_turn() ? "YOU" : "THEM", m, s);
+        snprintf(line, sizeof(line), "%s %02d:%02d", match_my_turn() ? "TU" : "RIV", m, s);
         display_text(62, 26, line, match_my_turn());
     }
-    display_text(62, 56, "K4 quit", false);
+    if (invalid_move_alert_time > 0) {
+        display_text(62, 36, "Movimiento", false);
+        display_text(62, 46, "Invalido", false);
+        invalid_move_alert_time -= UI_PERIOD_MS;
+    } else {
+        invalid_move_alert_time = 0;
+        display_text(62, 36, picked ? "B1 mover" : "B1 elegir", false);
+        display_text(62, 46, "B2 atras", false);
+    }
+    display_text(62, 56, "B4 salir", false);
     display_flush();
 }
