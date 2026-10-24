@@ -22,6 +22,79 @@ char piece_to_char(piece_type_t p)
     return s_piece_char[p];
 }
 
+/* 8x8 monochrome bitmaps for each piece.
+ * Each byte is 1 row of 8 pixels from top to bottom; bit 7 is leftmost. */
+static const uint8_t s_piece_sprites[6][8] = {
+    [PIECE_BISHOP] = {
+        0b00011000,
+        0b00111100,
+        0b01101110,
+        0b01111110,
+        0b00111100,
+        0b00011000,
+        0b01111110,
+        0b11111111,
+    },
+    [PIECE_KNIGHT] = {
+        0b00101000,
+        0b01111100,
+        0b11011100,
+        0b11111100,
+        0b00011100,
+        0b00111110,
+        0b01111110,
+        0b11111111,
+    },
+    [PIECE_PAWN] = {
+        0b00000000,
+        0b00011000,
+        0b00111100,
+        0b00011000,
+        0b00011000,
+        0b00111100,
+        0b01111110,
+        0b11111111,
+    },
+    [PIECE_ROOK] = {
+        0b11011011,
+        0b11111111,
+        0b01111110,
+        0b00111100,
+        0b00111100,
+        0b01111110,
+        0b01111110,
+        0b11111111,
+    },
+    [PIECE_KING] = {
+        0b00011000,
+        0b00111100,
+        0b00011000,
+        0b01111110,
+        0b01011010,
+        0b01111110,
+        0b00111100,
+        0b11111111,
+    },
+    [PIECE_QUEEN] = {
+        0b10011001,
+        0b01011010,
+        0b01111110,
+        0b00111100,
+        0b01111110,
+        0b01111110,
+        0b01111110,
+        0b11111111,
+    },
+};
+
+const uint8_t *piece_to_sprite(piece_type_t p)
+{
+    if (p < PIECE_BISHOP || p >= PIECE_EMPTY) {
+        return NULL;
+    }
+    return s_piece_sprites[p];
+}
+
 static bool is_path_clear(int x_init, int y_init, int x_end, int y_end, piece_t board[5][5])
 {
     int dx = (x_end > x_init) - (x_end < x_init);   // -1, 0, or 1

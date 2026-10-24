@@ -19,5 +19,6 @@ void display_draw_rect(int x, int y, int w, int h);
 
 void display_text(int x, int y, const char *str, bool invert);
 void display_text_piece(int x, int y, const char *str, bool invert);
+void display_draw_bitmap_8x8(int x, int y, const uint8_t bitmap[8], bool invert);
 
 esp_err_t display_flush(void);

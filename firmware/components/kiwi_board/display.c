@@ -270,6 +270,20 @@ void display_text_piece(int x, int y, const char *str, bool invert)
     }
 }
 
+void display_draw_bitmap_8x8(int x, int y, const uint8_t bitmap[8], bool invert)
+{
+    if (!bitmap) {
+        return;
+    }
+    for (int row = 0; row < 8; row++) {
+        uint8_t byte = bitmap[row];
+        for (int col = 0; col < 8; col++) {
+            bool on = (byte & (0x80u >> col)) != 0;
+            display_set_pixel(x + col, y + row, invert ? !on : on);
+        }
+    }
+}
+
 esp_err_t display_flush(void)
 {
     ESP_RETURN_ON_ERROR(esp_lcd_panel_draw_bitmap(s_panel, 0, 0, BOARD_LCD_WIDTH, BOARD_LCD_HEIGHT, s_fb), TAG,

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "display.h"
 #include "board.h"
@@ -11,8 +12,8 @@
 
 #define PEER_ROWS 4
 #define BUTTON_SLOTS 4
-#define BUTTON_SLOT_W BOARD_LCD_WIDTH / BUTTON_SLOTS
-#define BUTTON_SLOT_CHARS BUTTON_SLOT_W / DISPLAY_FONT_W
+#define BUTTON_SLOT_W (BOARD_LCD_WIDTH / BUTTON_SLOTS)
+#define BUTTON_SLOT_CHARS (BUTTON_SLOT_W / DISPLAY_FONT_W)
 #define BLINK_INTERVAL_MS 300
 
 /* Inverted bar across the top. */
@@ -25,7 +26,7 @@ static void display_button_options(const char **options, int len) {
     const int y = BOARD_LCD_HEIGHT - DISPLAY_FONT_H - 1;
     for (int i = 0; i < len && i < BUTTON_SLOTS; i++) {
         int x = i * BUTTON_SLOT_W;
-        char label[BUTTON_SLOT_CHARS + 1];
+        char label[16];
         
         /* Draw option */
         snprintf(label, sizeof(label), "%s", options[i]);
@@ -126,6 +127,25 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
     display_clear();
 
     if (match->is_game_over) {
+        const bool i_won = (match->winner_name[0] != '\0' &&
+                            strcmp(match->winner_name, match->my_name) == 0);
+
+        if (match->game_over_reason == GAME_OVER_TIMEOUT && i_won) {
+            const int title_w = 8 * DISPLAY_FONT_W;
+            const int title_x = (BOARD_LCD_WIDTH - title_w) / 2;
+            display_text(title_x, 8, "Ganaste!", true);
+
+            snprintf(line, sizeof(line), "%s se quedo", match->rival.name);
+            const int line_w = strlen(line) * DISPLAY_FONT_W;
+            const int line_x = (BOARD_LCD_WIDTH - line_w) / 2;
+            display_text(line_x, 24, line, false);
+
+            display_text(34, 36, "sin tiempo", false);
+            display_text(34, 52, "K4: volver", false);
+            display_flush();
+            return;
+        }
+
         display_text(37, 10, "GAME OVER", false);
         if (match->game_over_reason == GAME_OVER_TIMEOUT) {
             display_text(31, 24, "* TIMEOUT *", true);
@@ -149,26 +169,27 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
         for (int x = 0; x < 5; x++) {
             const piece_t square = match->board.sq[y][x];
             const bool is_cursor = x == cursor_x && y == cursor_y;
-            char txt[2] = {piece_to_char(square.piece), '\0'};
+            const bool is_picked = picked && x == picked_x && y == picked_y;
+            const uint8_t *sprite = piece_to_sprite(square.piece);
 
             if (square.piece == PIECE_EMPTY || square.is_white) {
                 if (!is_cursor) {
-                    if (picked && x == picked_x && y == picked_y) {
-                        if (blink_on) {
-                            draw_key(x_pos, y_pos, 10, false);
-                        }
-                    } else {
+                    if (!is_picked || blink_on) {
                         draw_key(x_pos, y_pos, 10, false);
                     }
                 }
-                if (square.piece != PIECE_EMPTY) {
-                    display_text_piece(x_pos + 2, y_pos + 2, txt, false);
+                if (sprite) {
+                    display_draw_bitmap_8x8(x_pos + 1, y_pos + 1, sprite, false);
                 }
             } else {
                 if (!is_cursor) {
-                    draw_key(x_pos, y_pos, 10, true);
+                    if (!is_picked || blink_on) {
+                        draw_key(x_pos, y_pos, 10, true);
+                    }
                 }
-                display_text_piece(x_pos + 2, y_pos + 2, txt, true);
+                if (sprite) {
+                    display_draw_bitmap_8x8(x_pos + 1, y_pos + 1, sprite, true);
+                }
             }
             x_pos += 11;
         }
