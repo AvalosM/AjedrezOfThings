@@ -71,9 +71,13 @@ static void on_match_button(button_id_t key)
         s_cursor_y++;
     } else if (key == BTN_KEY1 && !s_picked) {
         if (match_my_turn()) {
-            s_picked = true;
-            s_pick_x = s_cursor_x;
-            s_pick_y = s_cursor_y;
+            bool imwhite = match_get()->my_color == COLOR_WHITE;
+            bool square_is_white = match_get()->board.sq[s_cursor_y][s_cursor_x].is_white;
+            if (square_is_white == imwhite) {
+                s_picked = true;
+                s_pick_x = s_cursor_x;
+                s_pick_y = s_cursor_y;
+            }
         }
     } else if (key == BTN_KEY1) {
         /* Illegal moves do nothing (TODO: tell the player). */
