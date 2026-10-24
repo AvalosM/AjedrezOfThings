@@ -40,6 +40,9 @@ typedef struct {
 /* The letter shown for a piece: A C P T R D, ' ' for an empty square. */
 char piece_to_char(piece_type_t p);
 
+/* 8x8 sprite bitmap for a piece, or NULL for empty square. */
+const uint8_t *piece_to_sprite(piece_type_t p);
+
 /* Random start: 5 white pieces on rows 0-1, mirrored as black on rows 3-4. */
 void chessboard_init(piece_t board[5][5]);
 

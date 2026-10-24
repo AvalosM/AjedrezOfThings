@@ -189,32 +189,27 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
         for (int x = 0; x < 5; x++) {
             const piece_t square = match->board.sq[y][x];
             const bool is_cursor = x == cursor_x && y == cursor_y;
-            char txt[2] = {piece_to_char(square.piece), '\0'};
+            const bool is_picked = picked && x == picked_x && y == picked_y;
+            const uint8_t *sprite = piece_to_sprite(square.piece);
 
             if (square.piece == PIECE_EMPTY || square.is_white) {
                 if (!is_cursor) {
-                    if (picked && x == picked_x && y == picked_y) {
-                        if (blink_on) {
-                            draw_key(x_pos, y_pos, 11, false);
-                        }
-                    } else {
+                    if (!is_picked || blink_on) {
                         draw_key(x_pos, y_pos, 11, false);
                     }
                 }
-                if (square.piece != PIECE_EMPTY) {
-                    display_text_piece(x_pos + 3, y_pos + 2, txt, false);
+                if (sprite) {
+                    display_draw_bitmap_8x8(x_pos + 1, y_pos + 1, sprite, false);
                 }
             } else {
                 if (!is_cursor) {
-                    if (picked && x == picked_x && y == picked_y) {
-                        if (blink_on) {
-                            draw_key(x_pos, y_pos, 11, true);
-                        }
-                    } else {
+                    if (!is_picked || blink_on) {
                         draw_key(x_pos, y_pos, 11, true);
                     }
                 }
-                display_text_piece(x_pos + 3, y_pos + 2, txt, true);
+                if (sprite) {
+                    display_draw_bitmap_8x8(x_pos + 1, y_pos + 1, sprite, true);
+                }
             }
             x_pos += 12;
         }

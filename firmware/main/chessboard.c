@@ -22,6 +22,80 @@ char piece_to_char(piece_type_t p)
     return s_piece_char[p];
 }
 
+/* 8x8 monochrome bitmaps for each piece.
+ * Compact, clearly distinguishable silhouettes with air around them.
+ * Each byte is 1 row of 8 pixels from top to bottom; bit 7 is leftmost. */
+static const uint8_t s_piece_sprites[6][8] = {
+    [PIECE_BISHOP] = {
+        0b00011000, /*   ..XX..   (tall pointed spire) */
+        0b00011000, /*   ..XX..   (spire) */
+        0b00111100, /*  ..XXXX..  (mitre arch) */
+        0b01100110, /*  .XX..XX.  (mitre slit opening) */
+        0b01111110, /*  .XXXXXX.  (mitre body) */
+        0b00111100, /*  ..XXXX..  (taper) */
+        0b01111110, /*  .XXXXXX.  (base) */
+        0b00000000,
+    },
+    [PIECE_KNIGHT] = {
+        0b00101000, /*  ..X.X...  (pointed ears) */
+        0b00111100, /*  ..XXXX..  (top of head) */
+        0b01101100, /*  .XX.XX..  (snout + eye dot) */
+        0b01111000, /*  .XXXX...  (snout) */
+        0b00011100, /*  ...XXX..  (hollow throat cut) */
+        0b00111110, /*  ..XXXXX.  (arched neck) */
+        0b01111110, /*  .XXXXXX.  (base) */
+        0b00000000,
+    },
+    [PIECE_PAWN] = {
+        0b00000000,
+        0b00000000,
+        0b00011000, /*   ..XX..   (round head top) */
+        0b00111100, /*  ..XXXX..  (round head) */
+        0b00111100, /*  ..XXXX..  (round head) */
+        0b00011000, /*   ..XX..   (thin neck) */
+        0b00111100, /*  ..XXXX..  (compact 4px base) */
+        0b00000000,
+    },
+    [PIECE_ROOK] = {
+        0b00000000,
+        0b01011010, /*  .X.XX.X.  (flat 3-merlon battlements) */
+        0b01111110, /*  .XXXXXX.  (solid deck) */
+        0b00111100, /*  ..XXXX..  (straight wall column) */
+        0b00111100, /*  ..XXXX..  (straight wall column) */
+        0b00111100, /*  ..XXXX..  (straight wall column) */
+        0b01111110, /*  .XXXXXX.  (flat base) */
+        0b00000000,
+    },
+    [PIECE_KING] = {
+        0b00011000, /*   ..XX..   (cross vertical) */
+        0b01111110, /*  .XXXXXX.  (cross horizontal - WIDE) */
+        0b00011000, /*   ..XX..   (cross vertical) */
+        0b00111100, /*  ..XXXX..  (crown dome) */
+        0b01111110, /*  .XXXXXX.  (broad royal robe) */
+        0b01111110, /*  .XXXXXX.  (broad royal robe) */
+        0b01111110, /*  .XXXXXX.  (broad base) */
+        0b00000000,
+    },
+    [PIECE_QUEEN] = {
+        0b00000000,
+        0b01000010, /*  .X....X.  (flared crown tips) */
+        0b01011010, /*  .X.XX.X.  (3 crown points) */
+        0b00111100, /*  ..XXXX..  (crown base) */
+        0b00011000, /*   ..XX..   (corset thin waist) */
+        0b00111100, /*  ..XXXX..  (flared skirt) */
+        0b01111110, /*  .XXXXXX.  (gown hem) */
+        0b00000000,
+    },
+};
+
+const uint8_t *piece_to_sprite(piece_type_t p)
+{
+    if (p < PIECE_BISHOP || p >= PIECE_EMPTY) {
+        return NULL;
+    }
+    return s_piece_sprites[p];
+}
+
 static bool is_path_clear(int x_init, int y_init, int x_end, int y_end, piece_t board[5][5])
 {
     int dx = (x_end > x_init) - (x_end < x_init);   // -1, 0, or 1
