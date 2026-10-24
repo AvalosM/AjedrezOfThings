@@ -8,6 +8,7 @@
 #include "freertos/task.h"
 
 #include "screens.h"
+#include "history.h"
 
 
 #define PEER_ROWS 4
@@ -60,7 +61,7 @@ void screen_welcome(const char *name)
 
 void screen_lobby(const char *me, const link_peer_t *nearby, int n, int selected)
 {
-    char line[24];
+    char line[48];
 
     display_clear();
     snprintf(line, sizeof(line), "SALA   yo:%s", me);
@@ -74,17 +75,21 @@ void screen_lobby(const char *me, const link_peer_t *nearby, int n, int selected
        scroll so the selected board stays on the bottom row. */
     int first = selected < PEER_ROWS ? 0 : selected - PEER_ROWS + 1;
     for (int i = first; i < n && i < first + PEER_ROWS; i++) {
-        snprintf(line, sizeof(line), "%c %s %4ddBm%s", i == selected ? '>' : ' ',
-                 nearby[i].name, nearby[i].rssi, nearby[i].busy ? " ocup" : "");
+        match_history_t hist;
+        history_get(nearby[i].mac, &hist);
+        snprintf(line, sizeof(line), "%c %s %u - %u%s", i == selected ? '>' : ' ',
+                 nearby[i].name, hist.wins, hist.losses, nearby[i].busy ? " ocup" : "");
         display_text(0, 14 + (i - first) * 9, line, false);
     }
     if (first + PEER_ROWS < n) {
         display_text(120, 41, "v", false);  /* more below */
     }
 
-    const int btn_y = BOARD_LCD_HEIGHT - DISPLAY_FONT_H - 1;
-    display_text(0, btn_y, "retar", false);
-    display_text(50, btn_y, "sig", false);
+    if (n > 0) {
+        const int btn_y = BOARD_LCD_HEIGHT - DISPLAY_FONT_H - 1;
+        display_text(0, btn_y, "retar", false);
+        display_text(50, btn_y, "sig", false);
+    }
     display_flush();
 }
 

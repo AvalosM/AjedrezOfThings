@@ -35,7 +35,7 @@ typedef enum {
     GAME_OVER_NO_PIECES = 2,
 } game_over_reason_t;
 
-#define MATCH_TIME_SECONDS 60  
+#define MATCH_TIME_SECONDS 120  
 
 typedef struct {
     bool active;                /* a match is running */

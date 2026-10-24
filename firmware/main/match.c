@@ -4,8 +4,9 @@
 #include "freertos/task.h"
 
 #include "match.h"
+#include "history.h"
 
-static const char *TAG = "match";
+static const char *TAG __attribute__((unused)) = "match";
 
 #define STATE_PERIOD_MS 300
 #define GAME_OVER_AUTO_EXIT_MS 5000
@@ -23,6 +24,7 @@ typedef struct __attribute__((packed)) {
 static match_t s_match;
 static char s_my_name[LINK_NAME_LEN + 1];
 static uint32_t s_sent_ms;      /* when we last sent our STATE */
+static bool s_history_recorded = false;
 
 void match_init(const char *my_name)
 {
@@ -64,6 +66,7 @@ static void start(player_color_t color, const link_peer_t *rival)
     s_match.game_over_reason = GAME_OVER_NONE;
     s_match.winner_name[0] = '\0';
     s_match.game_over_since_ms = 0;
+    s_history_recorded = false;
 
     /* White makes the board; black gets it from white's first STATE. */
     if (color == COLOR_WHITE) {
@@ -105,8 +108,19 @@ esp_err_t match_accept(void)
     return ESP_OK;
 }
 
+static void record_played_match_if_needed(void)
+{
+    if (s_match.active && s_match.is_game_over && !s_history_recorded) {
+        s_history_recorded = true;
+        bool i_won = (s_match.winner_name[0] != '\0' &&
+                      strcmp(s_match.winner_name, s_match.my_name) == 0);
+        history_record(s_match.rival.mac, i_won);
+    }
+}
+
 void match_quit(void)
 {
+    record_played_match_if_needed();
     s_match.active = false;
     link_hangup();
 }
@@ -118,6 +132,7 @@ void match_on_link_event(link_event_t ev, const link_peer_t *peer, const uint8_t
         start(COLOR_WHITE, peer); 
         break;
     case LINK_EVT_DISCONNECTED:
+        record_played_match_if_needed();
         s_match.active = false;
         break;
     case LINK_EVT_DATA:
