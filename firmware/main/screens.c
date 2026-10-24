@@ -3,6 +3,8 @@
 #include "display.h"
 #include "board.h"
 #include "match.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include "screens.h"
 
@@ -11,6 +13,7 @@
 #define BUTTON_SLOTS 4
 #define BUTTON_SLOT_W BOARD_LCD_WIDTH / BUTTON_SLOTS
 #define BUTTON_SLOT_CHARS BUTTON_SLOT_W / DISPLAY_FONT_W
+#define BLINK_INTERVAL_MS 300
 
 /* Inverted bar across the top. */
 static void title(const char *text)
@@ -114,9 +117,11 @@ static void draw_key(int x, int y, int size, bool pressed)
     }
 }
 
-void screen_match(const match_t *match, int cursor_x, int cursor_y, bool picked)
+
+void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x, int picked_y, bool picked)
 {
     char line[24];
+    const bool blink_on = (xTaskGetTickCount() * portTICK_PERIOD_MS / BLINK_INTERVAL_MS) % 2;
 
     display_clear();
 
@@ -148,7 +153,13 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, bool picked)
 
             if (casilla.Pieza == Vacia || casilla.EsBlanca) {
                 if (!es_cursor) {
-                    draw_key(x_pos, y_pos, 10, false);
+                    if (picked && x == picked_x && y == picked_y) {
+                        if (blink_on) {
+                            draw_key(x_pos, y_pos, 10, false);
+                        }
+                    } else {
+                        draw_key(x_pos, y_pos, 10, false);
+                    }
                 }
                 if (casilla.Pieza != Vacia) {
                     display_text_pieza(x_pos + 2, y_pos + 2, txt, false);

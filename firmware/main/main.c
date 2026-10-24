@@ -172,7 +172,7 @@ static void draw(void)
         screen_invited(&peer);
         break;
     case LINK_CONNECTED:
-        screen_match(match_get(), s_cursor_x, s_cursor_y, s_picked);
+        screen_match(match_get(), s_cursor_x, s_cursor_y, s_pick_x, s_pick_y, s_picked);
         break;
     }
 }
