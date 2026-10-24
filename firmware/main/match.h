@@ -35,7 +35,7 @@ typedef enum {
     GAME_OVER_NO_PIECES = 2,
 } game_over_reason_t;
 
-#define MATCH_TIME_SECONDS 180  /* 3 minutos por jugador */
+#define MATCH_TIME_SECONDS 60  
 
 typedef struct {
     bool active;                /* a match is running */
@@ -45,8 +45,8 @@ typedef struct {
     link_peer_t rival;
     uint8_t turn_count;         /* moves made so far: white moves when it's even */
     board_t board;
-    int32_t my_time_s;          /* tiempo restante en segundos */
-    bool is_game_over;          /* fin de partida (por timeout o mate) */
+    int32_t my_time_s;         
+    bool is_game_over;     
     game_over_reason_t game_over_reason;
     char winner_name[LINK_NAME_LEN + 1];
     uint32_t game_over_since_ms;

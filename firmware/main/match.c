@@ -2,7 +2,6 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "esp_log.h"
 
 #include "match.h"
 
@@ -172,7 +171,6 @@ static void match_update_timer(void)
             s_match.game_over_since_ms = now_ms();
             strncpy(s_match.winner_name, s_match.rival.name, sizeof(s_match.winner_name) - 1);
             s_match.winner_name[sizeof(s_match.winner_name) - 1] = '\0';
-            ESP_LOGW(TAG, "TIMEOUT! Winner: %s", s_match.winner_name);
             send_state();
         }
     }
@@ -186,7 +184,6 @@ void match_tick(void)
 
     if (s_match.is_game_over) {
         if (s_match.game_over_since_ms > 0 && (now_ms() - s_match.game_over_since_ms >= GAME_OVER_AUTO_EXIT_MS)) {
-            ESP_LOGI(TAG, "auto returning to lobby after game over");
             match_quit();
             return;
         }
@@ -222,10 +219,9 @@ bool match_move(int x0, int y0, int x1, int y1)
         s_match.game_over_since_ms = now_ms();
         strncpy(s_match.winner_name, s_match.my_name, sizeof(s_match.winner_name) - 1);
         s_match.winner_name[sizeof(s_match.winner_name) - 1] = '\0';
-        ESP_LOGI(TAG, "WIN BY MOVE (no rival pieces left)! Winner: %s", s_match.winner_name);
     }
 
-    send_state();  /* right away, not at the next tick */
+    send_state();
     return true;
 }
 
