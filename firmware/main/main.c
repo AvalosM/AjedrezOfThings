@@ -103,7 +103,7 @@ static void on_button(button_id_t key)
         break;
     }
     case LINK_INVITING:
-        if (key == BTN_KEY2) {
+        if (key == BTN_KEY1 || key == BTN_KEY2) {
             link_hangup();
         }
         break;

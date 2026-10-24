@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "display.h"
 #include "board.h"
@@ -11,8 +12,8 @@
 
 #define PEER_ROWS 4
 #define BUTTON_SLOTS 4
-#define BUTTON_SLOT_W BOARD_LCD_WIDTH / BUTTON_SLOTS
-#define BUTTON_SLOT_CHARS BUTTON_SLOT_W / DISPLAY_FONT_W
+#define BUTTON_SLOT_W (BOARD_LCD_WIDTH / BUTTON_SLOTS)
+#define BUTTON_SLOT_CHARS (BUTTON_SLOT_W / DISPLAY_FONT_W)
 #define BLINK_INTERVAL_MS 300
 
 /* Inverted bar across the top. */
@@ -21,11 +22,21 @@ static void title(const char *text)
     display_text(1, 1, text, true);
 }
 
+static void display_text_centered(int y, const char *str, bool invert)
+{
+    int len = strlen(str);
+    int x = (BOARD_LCD_WIDTH - len * DISPLAY_FONT_W) / 2;
+    if (x < 0) {
+        x = 0;
+    }
+    display_text(x, y, str, invert);
+}
+
 static void display_button_options(const char **options, int len) {
     const int y = BOARD_LCD_HEIGHT - DISPLAY_FONT_H - 1;
     for (int i = 0; i < len && i < BUTTON_SLOTS; i++) {
         int x = i * BUTTON_SLOT_W;
-        char label[BUTTON_SLOT_CHARS + 1];
+        char label[16];
         
         /* Draw option */
         snprintf(label, sizeof(label), "%s", options[i]);
@@ -126,24 +137,44 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
     display_clear();
 
     if (match->is_game_over) {
-        display_text(37, 10, "GAME OVER", false);
-        if (match->game_over_reason == GAME_OVER_TIMEOUT) {
-            display_text(31, 24, "* TIMEOUT *", true);
-        } else if (match->game_over_reason == GAME_OVER_NO_PIECES) {
-            display_text(22, 24, "* SIN PIEZAS *", true);
+        const bool i_won = (match->winner_name[0] != '\0' &&
+                            strcmp(match->winner_name, match->my_name) == 0);
+
+        if (i_won) {
+            display_text_centered(8, "Ganaste!", true);
+            if (match->game_over_reason == GAME_OVER_TIMEOUT) {
+                snprintf(line, sizeof(line), "%s se quedo", match->rival.name);
+                display_text_centered(24, line, false);
+                display_text_centered(36, "sin tiempo", false);
+            } else if (match->game_over_reason == GAME_OVER_NO_PIECES) {
+                display_text_centered(24, "Comiste todas", false);
+                display_text_centered(36, "las piezas", false);
+            } else {
+                snprintf(line, sizeof(line), "Gana: %s", match->winner_name);
+                display_text_centered(28, line, false);
+            }
         } else {
-            display_text(28, 24, "* VICTORIA *", true);
+            display_text_centered(8, "Perdiste!", true);
+            if (match->game_over_reason == GAME_OVER_TIMEOUT) {
+                display_text_centered(24, "Te quedaste", false);
+                display_text_centered(36, "sin tiempo", false);
+            } else if (match->game_over_reason == GAME_OVER_NO_PIECES) {
+                display_text_centered(24, "Te quedaste", false);
+                display_text_centered(36, "sin piezas", false);
+            } else {
+                snprintf(line, sizeof(line), "Gana: %s", match->winner_name);
+                display_text_centered(28, line, false);
+            }
         }
-        snprintf(line, sizeof(line), "GANA: %s", match->winner_name);
-        display_text(37, 38, line, false);
-        display_text(34, 52, "K4: volver", false);
+
+        display_text_centered(52, "K4: volver", false);
         display_flush();
         return;
     }
 
-    // Board: squares of 10 px every 11 px, from (0, 6). The cursor
+    // Board: squares of 11 px every 12 px, from (0, 2). The cursor
     // square is drawn without a border.
-    int y_pos = 6;
+    int y_pos = 2;
     for (int y = 0; y < 5; y++) {
         int x_pos = 0;
         for (int x = 0; x < 5; x++) {
@@ -155,24 +186,24 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
                 if (!is_cursor) {
                     if (picked && x == picked_x && y == picked_y) {
                         if (blink_on) {
-                            draw_key(x_pos, y_pos, 10, false);
+                            draw_key(x_pos, y_pos, 11, false);
                         }
                     } else {
-                        draw_key(x_pos, y_pos, 10, false);
+                        draw_key(x_pos, y_pos, 11, false);
                     }
                 }
                 if (square.piece != PIECE_EMPTY) {
-                    display_text_piece(x_pos + 2, y_pos + 2, txt, false);
+                    display_text_piece(x_pos + 3, y_pos + 2, txt, false);
                 }
             } else {
                 if (!is_cursor) {
-                    draw_key(x_pos, y_pos, 10, true);
+                    draw_key(x_pos, y_pos, 11, true);
                 }
-                display_text_piece(x_pos + 2, y_pos + 2, txt, true);
+                display_text_piece(x_pos + 3, y_pos + 2, txt, true);
             }
-            x_pos += 11;
+            x_pos += 12;
         }
-        y_pos += 11;
+        y_pos += 12;
     }
 
     // Right of the board: who we play, our color, whose turn, timer, and keys.
