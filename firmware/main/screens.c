@@ -15,6 +15,8 @@
 #define BUTTON_SLOT_W (BOARD_LCD_WIDTH / BUTTON_SLOTS)
 #define BUTTON_SLOT_CHARS (BUTTON_SLOT_W / DISPLAY_FONT_W)
 #define BLINK_INTERVAL_MS 300
+#define ALERT_TIME_MS 1500
+#define UI_PERIOD_MS 10
 
 /* Inverted bar across the top. */
 static void title(const char *text)
@@ -128,8 +130,9 @@ static void draw_key(int x, int y, int size, bool pressed)
     }
 }
 
+int invalid_move_alert_time = 0;
 
-void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x, int picked_y, bool picked)
+void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x, int picked_y, bool picked, bool is_invalid_move)
 {
     char line[24];
     const bool blink_on = (xTaskGetTickCount() * portTICK_PERIOD_MS / BLINK_INTERVAL_MS) % 2;
@@ -172,6 +175,18 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
         return;
     }
 
+    if (is_invalid_move) {
+        invalid_move_alert_time = ALERT_TIME_MS;
+    }
+
+    if (invalid_move_alert_time > 0) {
+        display_text(62, 36,"Movimiento", false);
+        display_text(62, 46, "Invalido", false);
+        invalid_move_alert_time -= UI_PERIOD_MS;
+    } else {
+        invalid_move_alert_time = 0;
+    }
+
     // Board: squares of 11 px every 12 px, from (0, 2). The cursor
     // square is drawn without a border.
     int y_pos = 2;
@@ -197,7 +212,13 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
                 }
             } else {
                 if (!is_cursor) {
-                    draw_key(x_pos, y_pos, 11, true);
+                    if (picked && x == picked_x && y == picked_y) {
+                        if (blink_on) {
+                            draw_key(x_pos, y_pos, 11, true);
+                        }
+                    } else {
+                        draw_key(x_pos, y_pos, 11, true);
+                    }
                 }
                 display_text_piece(x_pos + 3, y_pos + 2, txt, true);
             }
@@ -218,8 +239,6 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
         snprintf(line, sizeof(line), "%s %02d:%02d", match_my_turn() ? "YOU" : "THEM", m, s);
         display_text(62, 26, line, match_my_turn());
     }
-    display_text(62, 36, picked ? "K1 move" : "K1 pick", false);
-    display_text(62, 46, "K2 back", false);
     display_text(62, 56, "K4 quit", false);
     display_flush();
 }

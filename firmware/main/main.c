@@ -43,6 +43,7 @@ static int s_cursor_y;
 static bool s_picked;
 static int s_pick_x;
 static int s_pick_y;
+static int is_invalid_move;
 
 /* Arcade-style initials from the MAC, so every board gets its own name. */
 static void name_from_mac(char out[LINK_NAME_LEN + 1])
@@ -76,7 +77,9 @@ static void on_match_button(button_id_t key)
         }
     } else if (key == BTN_KEY1) {
         /* Illegal moves do nothing (TODO: tell the player). */
-        match_move(s_pick_x, s_pick_y, s_cursor_x, s_cursor_y);
+        if (!match_move(s_pick_x, s_pick_y, s_cursor_x, s_cursor_y)) {
+            is_invalid_move = true;
+        };
         s_picked = false;
     } else if (key == BTN_KEY2) {
         s_picked = false;
@@ -172,7 +175,10 @@ static void draw(void)
         screen_invited(&peer);
         break;
     case LINK_CONNECTED:
-        screen_match(match_get(), s_cursor_x, s_cursor_y, s_pick_x, s_pick_y, s_picked);
+        screen_match(match_get(), s_cursor_x, s_cursor_y, s_pick_x, s_pick_y, s_picked, is_invalid_move);
+        if (is_invalid_move) {
+            is_invalid_move = false;  // Reset the flag after displaying the alert
+        }
         break;
     }
 }
