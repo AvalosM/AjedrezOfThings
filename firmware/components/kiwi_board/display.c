@@ -21,13 +21,12 @@ static const char *TAG = "display";
 #define FB_SIZE         (BOARD_LCD_WIDTH * BOARD_LCD_HEIGHT / 8)
 
 
-// Este es su framebuffer basicamente a lo que le escriben para que 
-// el display despues lo dibuje.
+// Framebuffer written to before drawing to the display.
 static uint8_t s_fb[FB_SIZE];
 static esp_lcd_panel_handle_t s_panel;
 static SemaphoreHandle_t s_flush_done;
 
-// ROBADO ni loco escribia esto
+// 5x8 ASCII font bitmap
 static const uint8_t s_font[][5] = {
     {0x00, 0x00, 0x00, 0x00, 0x00}, /* ' ' */
     {0x00, 0x00, 0x5F, 0x00, 0x00}, /* ! */
@@ -257,17 +256,17 @@ void display_text(int x, int y, const char *str, bool invert)
     }
 }
 
-void display_text_pieza(int x, int y, const char *str, bool invert)
+void display_text_piece(int x, int y, const char *str, bool invert)
 {
     int len = strlen(str);
 
     if (invert) {
-        display_fill_rect(x - 1, y - 1, len * DISPLAY_FONT_W_pieza + 1, DISPLAY_FONT_H_pieza + 2, true);
+        display_fill_rect(x - 1, y - 1, len * DISPLAY_FONT_W_PIECE + 1, DISPLAY_FONT_H_PIECE + 2, true);
     } else {
-        display_fill_rect(x, y, len * DISPLAY_FONT_W_pieza, DISPLAY_FONT_H_pieza, false);
+        display_fill_rect(x, y, len * DISPLAY_FONT_W_PIECE, DISPLAY_FONT_H_PIECE, false);
     }
     for (int i = 0; i < len; i++) {
-        draw_char(x + i * DISPLAY_FONT_W_pieza, y, str[i], !invert);
+        draw_char(x + i * DISPLAY_FONT_W_PIECE, y, str[i], !invert);
     }
 }
 

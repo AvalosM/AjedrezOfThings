@@ -10,14 +10,14 @@
 
 static const char *TAG = "buttons";
 
-// Generalmente uno tiene un filtro pasabanda bajo para
-// filtrar la oscilacion de un boton, como no tenemos eso
-// por software esperamos un ratito. Esto se puede mejorar.
+// Usually a low-pass filter is used to debounce button bouncing;
+// since we don't have that in hardware, we wait briefly in software.
+// This can be improved.
 #define DEBOUNCE_MS     20
 #define EVENT_QUEUE_LEN 16
 
-// Esto esta mal, ver los comentarios en board.h
-// btw chequeen: https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/gpio.html
+// See comments in board.h
+// Reference: https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/gpio.html
 static const struct {
     gpio_num_t gpio;
     const char *name;
@@ -44,11 +44,9 @@ static inline bool level_is_pressed(button_id_t id)
 }
 
 /*
-    Creo que la mayoria ya tuvo Orga II pero un isr es un interrupt
-    service routine aka el cachito de codigo que llamas cuando te cae
-    una interrupcion, por cuestiones obvias queremos lidear con la int
-    lo mas rapido posible y hay funciones especificas para encolar cuando
-    estas dentro de una isr.
+    An ISR is an interrupt service routine called when an interrupt occurs.
+    For obvious reasons we want to handle the interrupt as quickly as possible,
+    and there are specific functions to enqueue from within an ISR.
     https://www.freertos.org/Documentation/02-Kernel/04-API-references/06-Queues/04-xQueueSendFromISR
 */
 static void IRAM_ATTR button_isr(void *arg)
@@ -59,19 +57,15 @@ static void IRAM_ATTR button_isr(void *arg)
     gpio_intr_disable(s_buttons[id].gpio);
     xQueueSendFromISR(s_isr_queue, &id, &woken);
 
-    // Woken dice: Escribir a la queue desperto una task de mayor prioridad
-    //              a la task interrumpida
-    // Esta nada mas para evitar un priority inversion.
-    // Si vieron SO lo entienden de una
+    // woken indicates whether writing to the queue unblocked a task of higher
+    // priority than the interrupted task, avoiding priority inversion.
     if (woken) {
         portYIELD_FROM_ISR();
     }
 }
 
 /*
-    No esta del todo mal pensar en las tasks como "procesos light"
-    Piensen que son unidades de trabajo concurrentes con la particularidad
-    de que ningun proceso tiene memoria propia...
+    Tasks run concurrently, sharing the same address space.
 */
 static void buttons_task(void *arg)
 {
@@ -96,10 +90,10 @@ static void buttons_task(void *arg)
 }
 
 /*
-    OKAY LETS GO!!!!!
-    Tenemos una cola de la interrupcion de donde lee la task
-    Una cola de eventos de donde lee el resto que quiere leer botones
-    Nuextra task de botones (vean la docu para entender las flags son medio un embole)
+    Button setup:
+    An ISR queue that the task reads from,
+    an event queue where the rest of the application reads button events,
+    and the button handler task.
     https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/freertos_idf.html#_CPPv411xTaskCreate14TaskFunction_tPCKcK22configSTACK_DEPTH_TYPEPCv11UBaseType_tPC12TaskHandle_t
 */
 esp_err_t buttons_init(void)
@@ -123,7 +117,7 @@ esp_err_t buttons_init(void)
             .intr_type = GPIO_INTR_ANYEDGE,
         };
         ESP_RETURN_ON_ERROR(gpio_config(&cfg), TAG, "config of %s failed", s_buttons[i].name);
-        // Por cada boton agregamos el isr de los botones como el handler.
+        // For each button, register the button ISR handler.
         ESP_RETURN_ON_ERROR(gpio_isr_handler_add(s_buttons[i].gpio, button_isr, (void *)(uintptr_t)i), TAG,
                             "isr add of %s failed", s_buttons[i].name);
     }

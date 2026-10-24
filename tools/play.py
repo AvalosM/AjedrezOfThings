@@ -38,7 +38,7 @@ STATE_PERIOD = 0.3
 
 # --- pieces and rules (firmware/main/chessboard.c) ---------------------------------
 
-ALFIL, CABALLO, PEON, TORRE, REY, DAMA, VACIA = range(7)
+BISHOP, KNIGHT, PAWN, ROOK, KING, QUEEN, EMPTY = range(7)
 LETTERS = "ACPTRD"
 
 
@@ -51,10 +51,10 @@ def is_white(sq):
 
 
 def initial_board():
-    """Like iniciarTablero(): 5 random white pieces on rows 1-2, mirrored for black."""
-    board = [VACIA] * 25
+    """Like chessboard_init(): 5 random white pieces on rows 1-2, mirrored for black."""
+    board = [EMPTY] * 25
     for sq in random.sample(range(10), 5):
-        kind = random.randrange(VACIA)
+        kind = random.randrange(EMPTY)
         y, x = divmod(sq, 5)
         board[y * 5 + x] = kind | WHITE_BIT
         board[(4 - y) * 5 + x] = kind
@@ -62,42 +62,42 @@ def initial_board():
 
 
 def path_clear(board, x0, y0, x1, y1):
-    """Like camino_libre(): no piece between the two squares."""
+    """Like is_path_clear(): no piece between the two squares."""
     dx = (x1 > x0) - (x1 < x0)
     dy = (y1 > y0) - (y1 < y0)
     x, y = x0 + dx, y0 + dy
     while (x, y) != (x1, y1):
-        if piece(board[y * 5 + x]) != VACIA:
+        if piece(board[y * 5 + x]) != EMPTY:
             return False
         x, y = x + dx, y + dy
     return True
 
 
 def try_move(board, x0, y0, x1, y1, white):
-    """Like movimientoYCaptura(): the board after the move, or None if it's illegal."""
+    """Like board_move_and_capture(): the board after the move, or None if it's illegal."""
     if (x0, y0) == (x1, y1):
         return None
     src, dst = board[y0 * 5 + x0], board[y1 * 5 + x1]
-    if piece(src) == VACIA or is_white(src) != white:
+    if piece(src) == EMPTY or is_white(src) != white:
         return None
-    dst_empty = piece(dst) == VACIA
+    dst_empty = piece(dst) == EMPTY
     if not dst_empty and is_white(dst) == white:
         return None
 
     dx, dy = x1 - x0, y1 - y0
     adx, ady = abs(dx), abs(dy)
     kind = piece(src)
-    if kind == TORRE:
+    if kind == ROOK:
         ok = (dx == 0 or dy == 0) and path_clear(board, x0, y0, x1, y1)
-    elif kind == ALFIL:
+    elif kind == BISHOP:
         ok = adx == ady and path_clear(board, x0, y0, x1, y1)
-    elif kind == DAMA:
+    elif kind == QUEEN:
         ok = (dx == 0 or dy == 0 or adx == ady) and path_clear(board, x0, y0, x1, y1)
-    elif kind == CABALLO:
+    elif kind == KNIGHT:
         ok = (adx, ady) in ((1, 2), (2, 1))
-    elif kind == REY:
+    elif kind == KING:
         ok = adx <= 1 and ady <= 1
-    elif kind == PEON:
+    elif kind == PAWN:
         forward = 1 if white else -1  # white moves down the screen
         ok = (dx == 0 and dy == forward and dst_empty) or (adx == 1 and dy == forward and not dst_empty)
     else:
@@ -107,9 +107,9 @@ def try_move(board, x0, y0, x1, y1, white):
 
     new = list(board)
     new[y1 * 5 + x1] = src
-    new[y0 * 5 + x0] = VACIA
-    if kind == PEON and y1 in (0, 4):
-        new[y1 * 5 + x1] = DAMA | (src & WHITE_BIT)  # promotion
+    new[y0 * 5 + x0] = EMPTY
+    if kind == PAWN and y1 in (0, 4):
+        new[y1 * 5 + x1] = QUEEN | (src & WHITE_BIT)  # promotion
     return new
 
 # --- one match ------------------------------------------------------------------------
@@ -121,7 +121,7 @@ class Game:
     def __init__(self, link, white):
         self.link = link            # anything with send_data(bytes)
         self.white = white
-        self.board = [VACIA] * 25
+        self.board = [EMPTY] * 25
         self.started = False
         self.turn_count = 0
         self.sent_at = 0.0
@@ -145,7 +145,7 @@ class Game:
         turn = data[1]
         if self.started and turn <= self.turn_count and not (len(data) >= 32 and data[27] != 0):
             return False  # nothing new: we already have this turn
-        self.board = [sq if piece(sq) <= VACIA else VACIA for sq in data[2:27]]
+        self.board = [sq if piece(sq) <= EMPTY else EMPTY for sq in data[2:27]]
         self.turn_count = turn
         self.started = True
         return True
@@ -180,7 +180,7 @@ def show(game, peer_name):
         row = []
         for x in range(5):
             sq = game.board[y * 5 + x]
-            letter = "." if piece(sq) == VACIA else LETTERS[piece(sq)]
+            letter = "." if piece(sq) == EMPTY else LETTERS[piece(sq)]
             row.append(letter if is_white(sq) or letter == "." else letter.lower())
         print(f"  {y + 1} {' '.join(row)}")
     color = "white (UPPERCASE)" if game.white else "black (lowercase)"

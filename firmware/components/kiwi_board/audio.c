@@ -13,11 +13,8 @@
 #include "board.h"
 
 /*  
-    Todo esto esta robado de la docu, para entenderlo bien van a querer leer
+    Adapted from the ESP-IDF documentation:
     https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/i2s.html
-    Se que es medio gd decirles RTFM pero hay posta demasiadas cosas pasando 
-    y no soy bueno explicando.
-    La docu tiene muy buenos ejemplos.
 */
 
 static const char *TAG = "audio";

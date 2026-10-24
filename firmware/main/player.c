@@ -31,7 +31,7 @@ bool player_profile_load(char *name_out, size_t max_len)
     nvs_close(nvs);
 
     if (err == ESP_OK && strlen(name_out) == 3) {
-        ESP_LOGI(TAG, "Tag cargado: %s", name_out);
+        ESP_LOGI(TAG, "Tag loaded: %s", name_out);
         return true;
     }
     return false;
@@ -51,7 +51,7 @@ void save_player_name(const char *name_in)
     nvs_set_str(nvs, NVS_KEY_NAME, name_in);
     nvs_commit(nvs);
     nvs_close(nvs);
-    ESP_LOGI(TAG, "Tag guardado: %s", name_in);
+    ESP_LOGI(TAG, "Tag saved: %s", name_in);
 }
 
 static void render_arcade_screen(const char *tag, int current_slot)

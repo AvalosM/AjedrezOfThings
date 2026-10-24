@@ -17,14 +17,14 @@
 #define BOARD_LCD_WIDTH         128
 #define BOARD_LCD_HEIGHT        64
 
-// Esto esta mal pq habia que rotar 45 grados el joystick asi que bueno...
-// Hagan una rotacion ustedes confio en que pueden.
+// Note: the joystick orientation had to be rotated 45 degrees.
+// Adjust the orientation in software as needed.
 #define BOARD_KEY_UP_IO         GPIO_NUM_9
 #define BOARD_KEY_DOWN_IO       GPIO_NUM_11
 #define BOARD_KEY_LEFT_IO       GPIO_NUM_12
 #define BOARD_KEY_RIGHT_IO      GPIO_NUM_10
-// Center no esta conectado, me di cuenta tarde.
-// Podemos conectarlo con un cablecito a algun pin si lo ven necesario
+// Center is not connected.
+// Can be connected with a jumper wire to a pin if needed.
 #define BOARD_KEY_CENTER_IO     GPIO_NUM_13
 #define BOARD_KEY_1_IO          GPIO_NUM_14
 #define BOARD_KEY_2_IO          GPIO_NUM_21

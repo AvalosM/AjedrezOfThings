@@ -141,18 +141,18 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
         return;
     }
 
-    // Tablero: casillas de 10 px cada 11 px, desde (0, 6). La casilla del
-    // cursor se dibuja sin borde.
+    // Board: squares of 10 px every 11 px, from (0, 6). The cursor
+    // square is drawn without a border.
     int y_pos = 6;
     for (int y = 0; y < 5; y++) {
         int x_pos = 0;
         for (int x = 0; x < 5; x++) {
-            const struct_pieza casilla = match->board.sq[y][x];
-            const bool es_cursor = x == cursor_x && y == cursor_y;
-            char txt[2] = {pieza_a_char(casilla.Pieza), '\0'};
+            const piece_t square = match->board.sq[y][x];
+            const bool is_cursor = x == cursor_x && y == cursor_y;
+            char txt[2] = {piece_to_char(square.piece), '\0'};
 
-            if (casilla.Pieza == Vacia || casilla.EsBlanca) {
-                if (!es_cursor) {
+            if (square.piece == PIECE_EMPTY || square.is_white) {
+                if (!is_cursor) {
                     if (picked && x == picked_x && y == picked_y) {
                         if (blink_on) {
                             draw_key(x_pos, y_pos, 10, false);
@@ -161,14 +161,14 @@ void screen_match(const match_t *match, int cursor_x, int cursor_y, int picked_x
                         draw_key(x_pos, y_pos, 10, false);
                     }
                 }
-                if (casilla.Pieza != Vacia) {
-                    display_text_pieza(x_pos + 2, y_pos + 2, txt, false);
+                if (square.piece != PIECE_EMPTY) {
+                    display_text_piece(x_pos + 2, y_pos + 2, txt, false);
                 }
             } else {
-                if (!es_cursor) {
+                if (!is_cursor) {
                     draw_key(x_pos, y_pos, 10, true);
                 }
-                display_text_pieza(x_pos + 2, y_pos + 2, txt, true);
+                display_text_piece(x_pos + 2, y_pos + 2, txt, true);
             }
             x_pos += 11;
         }

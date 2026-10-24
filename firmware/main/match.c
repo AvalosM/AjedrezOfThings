@@ -67,7 +67,7 @@ static void start(player_color_t color, const link_peer_t *rival)
 
     /* White makes the board; black gets it from white's first STATE. */
     if (color == COLOR_WHITE) {
-        iniciarTablero(s_match.board.sq);
+        chessboard_init(s_match.board.sq);
         s_match.started = true;
         send_state();
     }
@@ -204,16 +204,16 @@ bool match_my_turn(void)
 
 bool match_move(int x0, int y0, int x1, int y1)
 {
-    const Jugador me = {.EsBlanca = s_match.my_color == COLOR_WHITE};
+    const player_t me = {.is_white = s_match.my_color == COLOR_WHITE};
 
-    if (s_match.is_game_over || !match_my_turn() || !movimientoYCaptura(x0, y0, x1, y1, s_match.board.sq, me)) {
+    if (s_match.is_game_over || !match_my_turn() || !board_move_and_capture(x0, y0, x1, y1, s_match.board.sq, me)) {
         return false;
     }
     s_match.turn_count++;
 
     /* Check if rival has no pieces left */
-    const bool rival_es_blanca = (s_match.my_color != COLOR_WHITE);
-    if (contarPiezas(s_match.board.sq, rival_es_blanca) == 0) {
+    const bool rival_is_white = (s_match.my_color != COLOR_WHITE);
+    if (board_count_pieces(s_match.board.sq, rival_is_white) == 0) {
         s_match.is_game_over = true;
         s_match.game_over_reason = GAME_OVER_NO_PIECES;
         s_match.game_over_since_ms = now_ms();
